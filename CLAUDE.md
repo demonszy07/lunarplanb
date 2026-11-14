@@ -46,3 +46,10 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
 ## Do not build
 Decorative spinning globe, link budget, battery sizing, thermal model, chat assistant,
 more than seven terrain sites.
+
+## Before submission
+- The first-stage jury is in Türkiye, where vercel.app does not open without a VPN.
+  When the repo is made public, add GitHub Pages as a second address:
+  restore .github/workflows/pages.yml from commit fef2a9d, have the user set
+  Settings > Pages > Source to "GitHub Actions", check that the github.io address
+  opens without a VPN, then put both addresses in the README.
