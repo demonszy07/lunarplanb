@@ -1,0 +1,14 @@
+5 points x 40 times = 200 comparisons per body
+absolute difference, degrees (ours minus Horizons)
+body   quantity                            min     median        max
+sun    azimuth                        0.000166   0.000178   0.000191
+sun    azimuth x cos(elevation)       0.000166   0.000178   0.000191
+sun    elevation                      0.000000   0.000002   0.000016
+sun    angular diameter               0.000000   0.000000   0.000000
+       mean signed: azimuth x cos(el) +0.000180, elevation -0.000000
+earth  azimuth                        0.000241   0.004164   0.005840
+earth  azimuth x cos(elevation)       0.000241   0.004150   0.005797
+earth  elevation                      0.000000   0.000239   0.000556
+earth  angular diameter               0.000007   0.000259   0.000393
+       mean signed: azimuth x cos(el) -0.000032, elevation -0.000009
+largest azimuth or elevation difference: 0.005840 deg (target: below 0.01)
