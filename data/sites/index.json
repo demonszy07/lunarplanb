@@ -1,0 +1,51 @@
+[
+ {
+  "id": "site01",
+  "name": "Site 1, connecting ridge",
+  "lat": -89.45,
+  "lon": 222.69,
+  "site_height_m": 1954.34
+ },
+ {
+  "id": "site04",
+  "name": "Site 4, Shackleton rim",
+  "lat": -89.762,
+  "lon": 202.9328,
+  "site_height_m": 1725.05
+ },
+ {
+  "id": "site07",
+  "name": "Site 7, peak near Shackleton",
+  "lat": -88.8073,
+  "lon": 123.7768,
+  "site_height_m": 1647.57
+ },
+ {
+  "id": "site11",
+  "name": "Site 11, de Gerlache rim",
+  "lat": -88.6683,
+  "lon": 291.6242,
+  "site_height_m": 1812.37
+ },
+ {
+  "id": "malapert",
+  "name": "Malapert massif",
+  "lat": -85.9876,
+  "lon": 2.0528,
+  "site_height_m": 5172.46
+ },
+ {
+  "id": "mouton",
+  "name": "Mons Mouton plateau",
+  "lat": -85.4034,
+  "lon": 31.6796,
+  "site_height_m": 6461.35
+ },
+ {
+  "id": "haworth",
+  "name": "Haworth",
+  "lat": -86.3628,
+  "lon": 336.7905,
+  "site_height_m": 2840.94
+ }
+]
