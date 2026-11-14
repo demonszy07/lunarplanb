@@ -10,7 +10,7 @@ RoI points (from Site01_ROIs.shp) and ground height in the two terrain models:
 
 Observer 5 m above ground
        |     average illumination, %     |       longest dark, days       
-RoI    |    Barker  ours 80 m   ours 5 m |    Barker  ours 80 m   ours 5 m
+RoI    |  Barker A  ours 80 m   ours 5 m |  Barker A  ours 80 m   ours 5 m
 1      |     89.26      91.24      91.20 |      5.29       3.96       3.92
 2      |     88.51      90.10      90.44 |      7.31       5.38       5.38
 3      |     84.53      84.57      87.04 |      8.41       8.00       6.12
@@ -19,24 +19,25 @@ RoI    |    Barker  ours 80 m   ours 5 m |    Barker  ours 80 m   ours 5 m
 6      |     87.35      87.48      88.03 |      4.16       4.00       3.62
 7      |     82.79      83.30      83.20 |      5.42       5.25       5.21
 mean   |     86.61      87.34      87.93 |      5.59       4.96       4.57
-ours minus Barker, average illumination (points): 80 m +0.04 to +1.98, 5 m +0.41 to +2.51
-ours minus Barker, longest dark (days): 80 m -1.93 to -0.10, 5 m -2.29 to -0.21
+ours minus Barker A, average illumination (points): 80 m +0.04 to +1.98, 5 m +0.41 to +2.51
+ours minus Barker A, longest dark (days): 80 m -1.93 to -0.10, 5 m -2.29 to -0.21
 80 m minus 5 m near terrain: average -2.47 to +0.10 points (mean of absolute values 0.63); dark +0.00 to +1.88 days (mean of absolute values 0.39)
 horizon profile, 80 m against 5 m near terrain: median difference 0.003 deg, largest 0.479 deg; directions whose horizon is set within 5 km (5 m run): [265, 192, 402, 250, 280, 197, 220] of 720
 
 Observer 1 m above ground
-       |     average illumination, %     |       longest dark, days       
-RoI    |    Barker  ours 80 m   ours 5 m |    Barker  ours 80 m   ours 5 m
-1      |     68.03      81.64      80.81 |     16.55      11.33      12.04
-2      |     70.32      79.26      79.57 |     17.84      13.46      13.67
-3      |     67.51      71.02      74.40 |     22.23      17.17      16.08
-4      |     69.61      80.61      82.40 |     13.27       7.17       6.92
-5      |     70.38      77.98      78.22 |     15.24       7.83       8.46
-6      |     71.15      82.42      84.75 |     12.74       5.88       5.21
-7      |     67.36      79.14      76.25 |     14.54       5.75       6.08
-mean   |     69.19      78.87      79.49 |     16.06       9.80       9.78
-ours minus Barker, average illumination (points): 80 m +3.51 to +13.61, 5 m +6.89 to +13.60
-ours minus Barker, longest dark (days): 80 m -8.79 to -4.38, 5 m -8.46 to -4.17
+       |          average illumination, %           |       longest dark, days       
+RoI    |  Barker A  ours 80 m   ours 5 m   Barker C |  Barker A  ours 80 m   ours 5 m
+1      |     68.03      81.64      80.81      85.84 |     16.55      11.33      12.04
+2      |     70.32      79.26      79.57      85.75 |     17.84      13.46      13.67
+3      |     67.51      71.02      74.40      77.31 |     22.23      17.17      16.08
+4      |     69.61      80.61      82.40      86.81 |     13.27       7.17       6.92
+5      |     70.38      77.98      78.22      84.47 |     15.24       7.83       8.46
+6      |     71.15      82.42      84.75      86.74 |     12.74       5.88       5.21
+7      |     67.36      79.14      76.25      83.44 |     14.54       5.75       6.08
+mean   |     69.19      78.87      79.49      84.34 |     16.06       9.80       9.78
+ours 5 m between Barker A and C: 7 of 7 RoIs
+ours minus Barker A, average illumination (points): 80 m +3.51 to +13.61, 5 m +6.89 to +13.60
+ours minus Barker A, longest dark (days): 80 m -8.79 to -4.38, 5 m -8.46 to -4.17
 80 m minus 5 m near terrain: average -3.38 to +2.88 points (mean of absolute values 1.68); dark -0.71 to +1.08 days (mean of absolute values 0.55)
 horizon profile, 80 m against 5 m near terrain: median difference 0.072 deg, largest 1.188 deg; directions whose horizon is set within 5 km (5 m run): [474, 480, 464, 401, 494, 349, 466] of 720
 

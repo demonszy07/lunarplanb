@@ -4,3 +4,4 @@ imagecodecs
 matplotlib
 pytest
 pyproj
+pyshp

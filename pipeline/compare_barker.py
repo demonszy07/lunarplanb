@@ -44,6 +44,13 @@ BARKER = {
 }
 
 
+# Table 2, Case C, observer 1 m: every hour the best-lit pixel inside the RoI.
+# Case A above is the average over the pixels inside the RoI polygon; our
+# numbers are for one point (the one stored with the polygon), so they are
+# expected to fall between A and C.
+BARKER_C_1M = [85.84, 85.75, 77.31, 86.81, 84.47, 86.74, 83.44]
+
+
 def roi_points():
     """X, Y stored with each polygon of the shapefile, in file order."""
     reader = shapefile.Reader(ROIS)
@@ -91,24 +98,31 @@ def main():
 
     for height in (5.0, 1.0):
         print(f"\nObserver {height:g} m above ground")
-        print(f"{'':6} | {'average illumination, %':^31} | {'longest dark, days':^31}")
-        print(f"{'RoI':6} | {'Barker':>9} {'ours 80 m':>10} {'ours 5 m':>10} | "
-              f"{'Barker':>9} {'ours 80 m':>10} {'ours 5 m':>10}")
+        with_c = height == 1.0
+        print(f"{'':6} | {'average illumination, %':^{42 if with_c else 31}} | {'longest dark, days':^31}")
+        print(f"{'RoI':6} | {'Barker A':>9} {'ours 80 m':>10} {'ours 5 m':>10}"
+              + (f" {'Barker C':>10}" if with_c else "")
+              + f" | {'Barker A':>9} {'ours 80 m':>10} {'ours 5 m':>10}")
         cols = {"avg80": [], "avg5": [], "dark80": [], "dark5": []}
         for k in range(1, 8):
             a, b = results[(k, height, "80m")], results[(k, height, "5m")]
             cols["avg80"].append(a["avg"]); cols["avg5"].append(b["avg"])
             cols["dark80"].append(a["dark"]); cols["dark5"].append(b["dark"])
-            print(f"{k:<6} | {BARKER[height]['avg'][k - 1]:9.2f} {a['avg']:10.2f} {b['avg']:10.2f} | "
-                  f"{BARKER[height]['dark'][k - 1]:9.2f} {a['dark']:10.2f} {b['dark']:10.2f}")
+            print(f"{k:<6} | {BARKER[height]['avg'][k - 1]:9.2f} {a['avg']:10.2f} {b['avg']:10.2f}"
+                  + (f" {BARKER_C_1M[k - 1]:10.2f}" if with_c else "")
+                  + f" | {BARKER[height]['dark'][k - 1]:9.2f} {a['dark']:10.2f} {b['dark']:10.2f}")
         ref_avg, ref_dark = np.array(BARKER[height]["avg"]), np.array(BARKER[height]["dark"])
         c = {k: np.array(v) for k, v in cols.items()}
-        print(f"{'mean':6} | {ref_avg.mean():9.2f} {c['avg80'].mean():10.2f} {c['avg5'].mean():10.2f} | "
-              f"{ref_dark.mean():9.2f} {c['dark80'].mean():10.2f} {c['dark5'].mean():10.2f}")
-        print(f"ours minus Barker, average illumination (points): "
+        print(f"{'mean':6} | {ref_avg.mean():9.2f} {c['avg80'].mean():10.2f} {c['avg5'].mean():10.2f}"
+              + (f" {np.mean(BARKER_C_1M):10.2f}" if with_c else "")
+              + f" | {ref_dark.mean():9.2f} {c['dark80'].mean():10.2f} {c['dark5'].mean():10.2f}")
+        if with_c:
+            between = [(BARKER[height]["avg"][i] <= c["avg5"][i] <= BARKER_C_1M[i]) for i in range(7)]
+            print(f"ours 5 m between Barker A and C: {sum(between)} of 7 RoIs")
+        print(f"ours minus Barker A, average illumination (points): "
               f"80 m {np.min(c['avg80'] - ref_avg):+.2f} to {np.max(c['avg80'] - ref_avg):+.2f}, "
               f"5 m {np.min(c['avg5'] - ref_avg):+.2f} to {np.max(c['avg5'] - ref_avg):+.2f}")
-        print(f"ours minus Barker, longest dark (days): "
+        print(f"ours minus Barker A, longest dark (days): "
               f"80 m {np.min(c['dark80'] - ref_dark):+.2f} to {np.max(c['dark80'] - ref_dark):+.2f}, "
               f"5 m {np.min(c['dark5'] - ref_dark):+.2f} to {np.max(c['dark5'] - ref_dark):+.2f}")
         d_avg, d_dark = c["avg80"] - c["avg5"], c["dark80"] - c["dark5"]

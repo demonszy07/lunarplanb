@@ -1,0 +1,8 @@
+RoI 4, observer 1 m, 5 m near terrain, 2024-01-01 to 2026-01-01, hourly
+pixels with centre in the polygon: 532; sampled every 1 pixels in both directions: 532; stored point x -11287.5 y -12167.5
+per pixel, average illumination %: min 70.11  median 77.82  mean 77.54  max 85.13  standard deviation 4.34
+per pixel, longest dark, days:     min 5.29  median 9.00  mean 10.03  max 21.21
+area average of average illumination: 77.54 %   (Barker Case A: 69.61, 1st percentile of 100 clones)
+area average of longest dark:         10.03 days (Barker Case A: 13.27, 99th percentile of 100 clones)
+best-lit sampled pixel every hour:    86.85 %   (Barker Case C: 86.81)
+run time 490 s

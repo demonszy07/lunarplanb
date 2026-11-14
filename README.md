@@ -14,6 +14,7 @@ python pipeline/check_sky.py      # compares with direct Horizons queries
 python pipeline/build_sites.py    # writes data/sites/[id].json (needs the two terrain files)
 python tests/make_vectors.py      # writes tests/vectors.json from the Python reference
 python pipeline/monthly.py data/sites/site01.json 2027
+python pipeline/compare_barker.py  # check against Barker et al. 2021 (needs extra downloads, see the file)
 python pipeline/plot_horizon.py data/sites/site01.json data/site1_horizon.png
 python -m pytest tests
 ```
@@ -47,6 +48,27 @@ Heights are above the 1737.4 km sphere, read from `LDEM_80S_80MPP_ADJ.TIF`. The 
 - Earth link: counted when Earth's centre is above the terrain. No antenna, no ground stations on Earth, no link budget.
 - Mission metrics are sampled once per step (one hour by default), so durations and times to first sunset are known to one step.
 - The browser table is sampled every 3 hours and stored as 16-bit numbers; against the hourly table this adds at most 0.001 degrees.
+
+## Check against Barker et al. (2021)
+
+Table 2 of Barker et al. (2021) gives average illumination and the longest dark period for seven regions of interest (RoIs) at Site 1, for an observer 1 m and 5 m above the ground, from 2024-01-01 to 2026-01-01. We computed the same two numbers with this pipeline at the point stored with each RoI, with a separate hourly Horizons table for those two years (`pipeline/compare_barker.py`, output in `data/barker_comparison.txt`). Means over the seven RoIs:
+
+| Observer | Quantity | Barker Case A | Ours, 80 m terrain | Ours, 5 m map for the first 5 km | Barker Case C |
+|---|---|---|---|---|---|
+| 5 m | average illumination, % | 86.61 | 87.34 | 87.93 | |
+| 5 m | longest dark, days | 5.59 | 4.96 | 4.57 | |
+| 1 m | average illumination, % | 69.19 | 78.87 | 79.49 | 84.34 |
+| 1 m | longest dark, days | 16.06 | 9.80 | 9.78 | |
+
+At 5 m we are 0.0 to 2.5 points above Case A and 0.1 to 2.3 days shorter, the direction expected for one unperturbed map against a pessimistic percentile. At 1 m we are 4 to 14 points above Case A and 4 to 9 days shorter. The two do not measure the same thing. Case A is the average over all pixels inside the RoI polygon, taken as the 1st percentile (illumination) or 99th percentile (dark) over 100 "clone" maps with plausible height errors added. Case C takes the best-lit pixel in the RoI every hour. Ours is one point on one map; it lies between A and C in all seven RoIs.
+
+What was measured:
+
+- Terrain detail. Replacing the first 5 km of our 80 m terrain with PGDA's 5 m map changes the average by 1.7 points at 1 m (largest 3.4) and 0.6 points at 5 m (largest 2.5), and the longest dark period by about half a day (largest 1.9). This is the size of the terrain uncertainty in the site numbers of this project. It does not explain the gap at 1 m.
+- Clone percentiles. With our code on the paper's 100 clones, still at one point per RoI (`pipeline/compare_barker_clones.py`, `data/barker_clones.txt`): at 5 m the 1st percentile of average illumination is within -0.1 to +0.5 points of Case A, and the 99th percentile of the dark period is 0.0 to 2.0 days shorter. At 1 m a single point ranges over 48 to 86 % across the clones; its 1st percentile is 0.9 to 13.5 points below Case A, and the 99th percentile of its dark period runs from 3.3 days shorter to 7.2 days longer than Case A.
+- Area average, RoI 4 only, on the unperturbed 5 m map, 1 m observer (`pipeline/compare_barker_area.py`, `data/barker_area_roi4.txt`): the average over all 532 pixels is 77.5 % (single point 82.4 %, Case A 69.6 %), the mean longest dark period 10.0 days (single point 6.9, Case A 13.3), and the best-lit pixel every hour gives 86.85 % against Case C 86.81 %.
+
+What was not measured: the area average on the clones, which is the exact Case A statistic; the other six RoIs as areas; and the effect of limb darkening, which the paper applies to the Sun's disc and we do not. For RoI 4 the area average closes about 5 of the 13 points between our single point and Case A. The rest is consistent with the clone percentile, but that was not computed directly, and the paper itself was not available to this build; the Table 2 values and the meaning of the cases were supplied by the project author.
 
 ## Sources
 
