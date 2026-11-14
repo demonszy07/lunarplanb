@@ -37,9 +37,19 @@ export function parseView(buffer) {
   return {
     columns: header.columns, rows: header.rows,
     elTop: header.elevation_top_deg, elStep: header.elevation_step_deg,
-    normals: new Int8Array(buffer, 8 + length, header.columns * header.rows * 2),
+    // stored as signed square roots (finest steps for nearly level ground); undo that once
+    normals: Float32Array.from(new Int8Array(buffer, 8 + length, header.columns * header.rows * 2),
+      (q) => Math.sign(q) * (q / 127) * (q / 127)),
     canvas: null, key: "",
   };
+}
+
+// The light is a disc about 0.53 degrees wide, not a point: while the ground's
+// own horizon cuts through that disc the brightness rises smoothly instead of
+// switching on (the average of max(0, mu0) over the disc's half width).
+const DISC = Math.sin(0.2666 * RAD);
+function softMu0(mu0) {
+  return mu0 >= DISC ? mu0 : mu0 <= -DISC ? 0 : (mu0 + DISC) * (mu0 + DISC) / (4 * DISC);
 }
 
 // Brightness of a patch of ground by the Lommel-Seeliger law, the usual
@@ -52,7 +62,7 @@ export function parseView(buffer) {
 export function lommelSeeliger(nEast, nNorth, az, el, lightAz, lightEl) {
   const nUp = Math.sqrt(Math.max(0, 1 - nEast * nEast - nNorth * nNorth));
   const ce = Math.cos(lightEl * RAD);
-  const mu0 = nEast * ce * Math.sin(lightAz * RAD) + nNorth * ce * Math.cos(lightAz * RAD) + nUp * Math.sin(lightEl * RAD);
+  const mu0 = softMu0(nEast * ce * Math.sin(lightAz * RAD) + nNorth * ce * Math.cos(lightAz * RAD) + nUp * Math.sin(lightEl * RAD));
   if (mu0 <= 0) return 0;
   const cv = Math.cos(el * RAD);
   const mu = Math.max(0.01, -(nEast * cv * Math.sin(az * RAD) + nNorth * cv * Math.cos(az * RAD) + nUp * Math.sin(el * RAD)));
@@ -118,10 +128,10 @@ function shadeGround(ground, view) {
         const a = 2 * (r0 * columns + c0 % columns), b = 2 * (r0 * columns + (c0 + 1) % columns);
         const c = a + 2 * columns, d = b + 2 * columns;
         const w00 = (1 - tr) * (1 - tc), w01 = (1 - tr) * tc, w10 = tr * (1 - tc), w11 = tr * tc;
-        const ne = (w00 * normals[a] + w01 * normals[b] + w10 * normals[c] + w11 * normals[d]) / 127;
-        const nn = (w00 * normals[a + 1] + w01 * normals[b + 1] + w10 * normals[c + 1] + w11 * normals[d + 1]) / 127;
+        const ne = w00 * normals[a] + w01 * normals[b] + w10 * normals[c] + w11 * normals[d];
+        const nn = w00 * normals[a + 1] + w01 * normals[b + 1] + w10 * normals[c + 1] + w11 * normals[d + 1];
         const nu = Math.sqrt(Math.max(0, 1 - ne * ne - nn * nn));
-        const mu0 = ne * lx + nn * ly + nu * lz;
+        const mu0 = softMu0(ne * lx + nn * ly + nu * lz);
         if (mu0 > 0) {
           // the same Lommel-Seeliger law as lommelSeeliger() above
           const mu = Math.max(0.01, -(ne * ce * ground.sinAz[x] + nn * ce * ground.cosAz[x] + nu * se));

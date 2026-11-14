@@ -333,10 +333,24 @@ def view(lat_deg: float, lon_deg: float, observer_height_m: float,
     row_el = np.radians(VIEW_EL_TOP - (np.arange(VIEW_ROWS) + 0.5) * VIEW_EL_STEP)
     seen = np.maximum.accumulate(elev, axis=1)      # highest terrain so far along the ray
     best = np.argmax(elev, axis=1)
-    index = np.empty((VIEW_ROWS, VIEW_AZ), dtype=np.int64)
+    d = np.empty((VIEW_ROWS, VIEW_AZ))
+    eye_height = s["ro"] - R_M - s["site_height"]
     for i in range(VIEW_AZ):
-        index[:, i] = np.minimum(np.searchsorted(seen[i], row_el), best[i])
-    d = dist[index]
+        k = np.minimum(np.searchsorted(seen[i], row_el), best[i])
+        hit = dist[k]
+        # The line of sight meets the ground between two steps of the march:
+        # place the point by straight line between them, so neighbouring rows
+        # do not all land on the same step.
+        inside = (k > 0) & (k < best[i] + 1)
+        k0 = np.maximum(k - 1, 0)
+        e0, e1 = seen[i][k0], seen[i][k]
+        ok = inside & np.isfinite(e0) & (e1 > e0) & (row_el > e0) & (row_el <= e1)
+        t = np.where(ok, (row_el - e0) / np.where(ok, e1 - e0, 1.0), 1.0)
+        hit = np.where(ok, dist[k0] + t * (dist[k] - dist[k0]), hit)
+        # closer than the first step: level ground under the observer
+        below = (k == 0) & (row_el < seen[i][0]) & (row_el < 0)
+        hit = np.where(below, np.clip(eye_height / np.tan(-np.where(below, row_el, -1.0)), 0.5, dist[0]), hit)
+        d[:, i] = hit
 
     az = np.radians(s["az_deg"])[None, :] * np.ones((VIEW_ROWS, 1))
     lat, lon = _points(s["p"], s["n"], s["e"], az, d)
@@ -364,23 +378,38 @@ def view(lat_deg: float, lon_deg: float, observer_height_m: float,
     return {"normal": in_observer_frame, "distance_km": d / 1000.0, "flat_filled": int(flat.sum())}
 
 
+def encode_normal(component):
+    """Signed bytes for the east and north parts of a unit normal. The value is
+    stored as its signed square root, so nearly level ground, where a low Sun
+    makes the smallest tilt matter, keeps the finest steps."""
+    component = np.asarray(component, dtype=float)
+    return (np.sign(component) * np.round(127.0 * np.sqrt(np.abs(component)))).astype(np.int8)
+
+
+def decode_normal(q):
+    q = np.asarray(q, dtype=float)
+    return np.sign(q) * (q / 127.0) ** 2
+
+
 def write_view(path: str, normal, header_extra: dict | None = None) -> None:
     """File layout (little-endian), same idea as the sky table:
       4 bytes "LVEW", uint32 length of the JSON header, JSON header (padded to an
       even length), then for every row (top first) and column two signed bytes:
-      east and north part of the unit ground normal, times 127."""
+      east and north part of the unit ground normal (see encode_normal)."""
     import json
     import struct
     header = {
         "columns": VIEW_AZ, "rows": VIEW_ROWS,
         "azimuth": "column i is i degrees clockwise from north",
         "elevation_top_deg": VIEW_EL_TOP, "elevation_step_deg": VIEW_EL_STEP,
-        "values": "int8 east, int8 north of the unit ground normal x 127, in the observer's east/north/up frame",
+        "values": "int8 pairs q: east and north part of the unit ground normal, in the observer's "
+                  "east/north/up frame, as sign(q) * (q / 127)^2",
+        "encoding": "squared",
     }
     header.update(header_extra or {})
     text = json.dumps(header, separators=(",", ":")).encode("utf-8")
     text += b" " * ((-len(text)) % 2)
-    data = np.round(normal[..., :2] * 127.0).astype(np.int8)
+    data = encode_normal(normal[..., :2])
     with open(path, "wb") as f:
         f.write(b"LVEW" + struct.pack("<I", len(text)) + text + data.tobytes())
 

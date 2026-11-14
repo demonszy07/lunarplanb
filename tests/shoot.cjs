@@ -58,6 +58,9 @@ if (require.main === module) (async () => {
       for (let h = 0; h < met % 24; h++) await page.keyboard.press("ArrowRight");
       await page.waitForFunction((m) => document.documentElement.dataset.met === String(m), met);
     }
+    if (process.env.SHOOT_CLICK && await page.locator(process.env.SHOOT_CLICK).isVisible()) {
+      await page.click(process.env.SHOOT_CLICK);        // e.g. SHOOT_CLICK='#notes-toggle'
+    }
     await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(out, `${name}${suffix}.png`) });
     const info = await page.evaluate(() => ({

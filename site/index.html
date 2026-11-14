@@ -13,13 +13,15 @@
   <div class="scene-col" id="scene-col">
     <figure class="view view-a">
       <canvas id="scene-a" aria-label="View from the plan A site: skyline, Sun and Earth at the moment under the cursor"></canvas>
-      <div class="top">
-        <div>
-          <p class="brand">Lunar Plan B</p>
+      <div class="top" id="top">
+        <p class="brand">Lunar Plan B</p>
+        <p class="stretch" id="stretch-a"></p>
+        <button class="info" id="notes-toggle" type="button" aria-expanded="false" aria-controls="notes" aria-label="Notes about this view">i</button>
+        <div class="notes" id="notes">
           <p class="seen">Seen by <select id="seen-by" aria-label="Eye or camera"><option value="eye">the eye</option><option value="camera">a camera</option></select>. <span id="seen-note"></span></p>
           <p class="look" id="look" hidden>Looking toward <select id="look-at" aria-label="Direction of view"><option value="sun">the Sun</option><option value="earth">Earth</option></select>. <span id="off-frame"></span></p>
+          <p class="more">Sun and Earth are drawn round, so they are widened by the same stretch. <span id="light-a"></span></p>
         </div>
-        <p class="stretch"><span id="stretch-a"></span><span class="light" id="light-a"></span></p>
       </div>
       <figcaption>
         <p class="sentence">Land at <select id="a-site" aria-label="Site"></select>
@@ -31,12 +33,14 @@
     <div class="under">
       <div class="now" id="now" aria-live="off">
         <p class="met" id="met">MET 000:00</p>
-        <p><span class="tag">A</span> <span id="when-a"></span><br><span id="count-a"></span></p>
-        <p><span class="tag">B</span> <span id="when-b"></span><br><span id="count-b"></span></p>
+        <p class="count"><span class="tag">A</span> <span id="when-a"></span> · <span id="count-a"></span></p>
+        <p class="count"><span class="tag">B</span> <span id="when-b"></span> · <span id="count-b"></span></p>
+        <div id="summary-slot"></div>
       </div>
       <figure class="view view-b">
         <canvas id="scene-b" aria-label="View from the plan B site at the same mission elapsed time"></canvas>
         <p class="stretch" id="stretch-b"></p>
+        <p class="light-short" id="light-short"></p>
         <figcaption>
           <p class="sentence small">The same plan, <select id="b-choice" aria-label="How plan B differs"></select><span id="b-site-wrap" hidden>: <select id="b-site" aria-label="Site of plan B"></select></span>.</p>
         </figcaption>
@@ -57,10 +61,14 @@
   </div>
 </section>
 
-<section class="summary" id="summary">
-  <h2>Mission summary</h2>
-  <div id="summary-table"></div>
-  <p class="note" id="low-note" hidden>Close to the ground, small terrain bumps matter. Real sunlight is likely lower than shown.</p>
+<section class="foot">
+  <div id="summary-home">
+    <div class="summary" id="summary">
+      <h2>Mission summary</h2>
+      <div id="summary-table"></div>
+      <p class="note" id="low-note" hidden>Close to the ground, small terrain bumps matter. Real sunlight is likely lower than shown.</p>
+    </div>
+  </div>
   <p class="note" id="site-note"></p>
 </section>
 <script type="module" src="js/app.js"></script>

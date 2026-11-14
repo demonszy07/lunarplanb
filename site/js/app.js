@@ -5,7 +5,7 @@
 import { parseSky } from "./sky.js";
 import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc } from "./plan.js";
 import { drawScene, offFrameNote, parseView, lighting, earthPictureSize } from "./scene.js";
-import { drawHead, drawTrack, PX_PER_HOUR } from "./flightplan.js";
+import { drawHead, drawTrack, stripWidth, PX_PER_HOUR } from "./flightplan.js";
 
 const $ = (id) => document.getElementById(id);
 const narrow = window.matchMedia("(max-width: 899px)");
@@ -175,10 +175,14 @@ function showMoment(force) {
       ? "With the Sun in view, a camera set for sunlit ground records no stars, as in the Apollo photographs."
       : "The Sun is down, so a long exposure shows the stars.";
   const light = lighting(a.views[met]).source;
-  $("stretch-a").textContent = `vertical scale stretched ${ga.stretch.toFixed(0)}×, Sun and Earth widened to match`;
-  $("light-a").textContent = light === "earth"
+  $("stretch-a").textContent = `vertical scale stretched ${ga.stretch.toFixed(0)}×`;
+  const lightNote = light === "earth"
     ? "The Sun is down. The ground is shown by Earthlight, roughly ten thousand times fainter than sunlight, with the exposure raised."
     : light === "none" ? "No Sun and no Earth: the ground is dark." : "";
+  $("light-a").textContent = lightNote;
+  // narrow screens: a short form over plan B's view; the full sentence is behind "i"
+  $("light-short").textContent = light === "earth" ? "A: Earthlight only, exposure raised"
+    : light === "none" ? "A: no Sun, no Earth, ground dark" : "";
   $("stretch-b").textContent = `stretched ${gb.stretch.toFixed(0)}×`;
   $("look").hidden = ga.full;
   $("off-frame").textContent = offFrameNote(ga, a.views[met], lookAt);
@@ -199,12 +203,12 @@ function showMoment(force) {
 }
 
 const ROWS = [
-  ["power", "Sun in view, any part of it", "sunlitHours", "sunlit_hours", "h"],
-  ["power", "Average share of the Sun's disc in view (power proxy)", "meanSunFraction", "mean_sun_fraction", "%"],
+  ["power", "Sun in view, any part", "sunlitHours", "sunlit_hours", "h"],
+  ["power", "Sun's disc in view, average (power proxy)", "meanSunFraction", "mean_sun_fraction", "%"],
   ["power", "Longest time with no Sun", "longestDarkHours", "longest_dark_hours", "h"],
-  ["link", "Earth in view, its centre above the terrain (direct link)", "earthHours", "earth_hours", "h"],
+  ["link", "Earth in view (direct link)", "earthHours", "earth_hours", "h"],
   ["link", "Longest time without Earth", "longestOutageHours", "longest_outage_hours", "h"],
-  ["", "Sun and Earth in view together", "bothHours", "both_hours", "h"],
+  ["", "Sun and Earth together", "bothHours", "both_hours", "h"],
 ];
 
 function showSummary(a, b) {
@@ -254,6 +258,33 @@ function showSummary(a, b) {
   note.append(link, ".");
 }
 
+// The flight plan strip is as wide as its column lets it be.
+let planWidth = 0;
+function drawPlan(onlyIfChanged) {
+  if (!state.runs) return;
+  const col = $("plan-col"), style = getComputedStyle(col);
+  const width = stripWidth(col.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+  if (onlyIfChanged && width === planWidth) return;
+  planWidth = width;
+  drawHead($("plan-head"), width);
+  drawTrack($("track"), state.runs, width);
+}
+
+// On a roomy screen the mission summary sits under the countdowns, beside
+// plan B's view; otherwise it follows the flight plan.
+const roomy = window.matchMedia("(min-width: 900px) and (min-height: 800px)");
+function placeSummary() {
+  $(roomy.matches ? "summary-slot" : "summary-home").append($("summary"));
+}
+roomy.addEventListener("change", placeSummary);
+placeSummary();
+
+// the "i" button on narrow screens opens the notes about the view
+$("notes-toggle").addEventListener("click", () => {
+  const open = $("top").classList.toggle("open");
+  $("notes-toggle").setAttribute("aria-expanded", String(open));
+});
+
 // ---- putting a pair of plans on screen -------------------------------------
 
 let request = 0;
@@ -269,8 +300,7 @@ async function showPlans() {
     state.runs = plans.map((plan, i) => runPlan(state.sky, sites[i], plan));
     const [a, b] = state.runs;
     $("verdict").textContent = verdict(a.metrics, b.metrics, a.n);
-    drawHead($("plan-head"));
-    drawTrack($("track"), state.runs);
+    drawPlan();
     showSummary(a, b);
     status.hidden = true;
     $("hint").hidden = false;
@@ -298,7 +328,7 @@ function onMove() {
   requestAnimationFrame(() => { queued = false; showMoment(false); });
 }
 window.addEventListener("scroll", onMove, { passive: true });
-window.addEventListener("resize", onMove);
+window.addEventListener("resize", () => { drawPlan(true); onMove(); });
 
 // arrow keys: one hour, with Shift one day; Home and End: landing and end of stay
 window.addEventListener("keydown", (event) => {

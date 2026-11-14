@@ -32,11 +32,23 @@ def direction(az_deg, el_deg):
     return np.stack([np.cos(el) * np.sin(az), np.cos(el) * np.cos(az), np.sin(el)], axis=-1)
 
 
+SUN_RADIUS_SIN = np.sin(np.radians(0.2666))     # the Sun's disc is about 0.53 degrees wide
+
+
+def soft_mu0(mu0, half_width=SUN_RADIUS_SIN):
+    """The light is a disc, not a point: while the ground's own horizon cuts
+    through that disc the brightness rises smoothly instead of switching on.
+    This is the average of max(0, mu0) over a window of the disc's half width."""
+    mu0 = np.asarray(mu0, dtype=float)
+    partly = (mu0 + half_width) ** 2 / (4.0 * half_width)
+    return np.where(mu0 >= half_width, mu0, np.where(mu0 <= -half_width, 0.0, partly))
+
+
 def lommel_seeliger(n_east, n_north, az_deg, el_deg, light_az_deg, light_el_deg):
     """Brightness (0..1) of ground with unit normal (n_east, n_north, up = the rest),
     seen in direction (az, el) and lit from (light_az, light_el)."""
     n_east, n_north = np.asarray(n_east, dtype=float), np.asarray(n_north, dtype=float)
     normal = np.stack([n_east, n_north, np.sqrt(np.maximum(0.0, 1.0 - n_east ** 2 - n_north ** 2))], axis=-1)
-    mu0 = np.sum(normal * direction(light_az_deg, light_el_deg), axis=-1)
+    mu0 = soft_mu0(np.sum(normal * direction(light_az_deg, light_el_deg), axis=-1))
     mu = np.maximum(0.01, -np.sum(normal * direction(az_deg, el_deg), axis=-1))
     return np.where(mu0 > 0.0, mu0 / (mu0 + mu), 0.0)

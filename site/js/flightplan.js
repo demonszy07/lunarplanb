@@ -6,12 +6,20 @@ import { formatMet } from "./plan.js";
 
 export const PX_PER_HOUR = 6;
 const POWER = "#F5D68A", LINK = "#6AA9FF", LINE = "#2E2E2E", TEXT = "#E6E6E6", DIM = "#9A9A9A";
-const WIDTH = 328;
-// x positions: time labels, then for each plan a power band, an Earth band and room for words
-const COLS = [
-  { power: 86, powerWidth: 36, link: 128, linkWidth: 8, words: 141 },
-  { power: 212, powerWidth: 36, link: 254, linkWidth: 8, words: 267 },
-];
+// x positions for a strip of the given width: time labels first, then for
+// each plan a power band, an Earth band and room for words
+function columns(width) {
+  const time = 86, group = (width - time) / 2;
+  const power = Math.min(64, Math.round(group * 0.3)), link = Math.max(8, Math.round(power * 0.22));
+  return [0, 1].map((i) => {
+    const x = Math.round(time + i * group);
+    return { power: x, powerWidth: power, link: x + power + 6, linkWidth: link, words: x + power + link + 12 };
+  });
+}
+// The strip is as wide as its column allows, within these limits.
+export function stripWidth(available) {
+  return Math.max(328, Math.min(600, Math.floor(available)));
+}
 const NS = "http://www.w3.org/2000/svg";
 
 function el(name, attrs, text) {
@@ -22,7 +30,8 @@ function el(name, attrs, text) {
 }
 
 // Column headings, drawn with the same x positions as the bands.
-export function drawHead(svg) {
+export function drawHead(svg, WIDTH) {
+  const COLS = columns(WIDTH);
   svg.replaceChildren();
   svg.setAttribute("viewBox", `0 0 ${WIDTH} 58`);
   svg.setAttribute("width", WIDTH);
@@ -37,7 +46,7 @@ export function drawHead(svg) {
     svg.append(
       el("text", { x: c.power, y: 14, fill: TEXT, "font-size": 15, "font-weight": 500 }, "Plan " + name),
       el("text", { x: c.power, y: 44, ...small }, "power"),
-      el("text", { x: c.link + 14, y: 44, ...small }, "Earth"));
+      el("text", { x: c.link, y: 44, ...small }, "Earth"));
   });
 }
 
@@ -46,7 +55,8 @@ function band(svg, x, width, height) {
 }
 
 // The long strip itself. runs = [runA, runB] from runPlan().
-export function drawTrack(svg, runs) {
+export function drawTrack(svg, runs, WIDTH) {
+  const COLS = columns(WIDTH);
   const n = runs[0].n, height = n * PX_PER_HOUR;
   svg.replaceChildren();
   svg.setAttribute("viewBox", `0 -8 ${WIDTH} ${height + 34}`);

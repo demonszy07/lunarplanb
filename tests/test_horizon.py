@@ -142,6 +142,19 @@ def test_view_normals_on_a_tilted_plane():
     assert np.allclose(n[..., 0], -0.1 / np.sqrt(1.01), atol=2e-3)
     assert np.allclose(n[..., 1], 0.0, atol=2e-3)
     assert np.allclose(n[..., 2], 1.0 / np.sqrt(1.01), atol=2e-3)
+    # the stored bytes give the tilt back; the steps are finest for level ground
+    from horizon import encode_normal, decode_normal
+    back = decode_normal(encode_normal(n[..., :2]))
+    assert np.abs(back - n[..., :2]).max() < 0.006
+    small = np.array([0.0005, 0.002, 0.01])
+    assert np.abs(decode_normal(encode_normal(small)) - small).max() < 0.0009
+    # down the picture the points get closer, one by one, not in jumps of a march step
+    # (this test map has 20 m pixels, so the march starts 10 m out; nearer rows stop there)
+    d = v["distance_km"][:, 90] * 1000.0
+    between = d[(d > 10.01) & (d < 14.5)]
+    assert len(between) > 8
+    assert np.all(np.diff(between) < 0) and np.abs(np.diff(between)).max() < 1.0
+    assert np.all(np.diff(d) <= 1e-9)
 
 
 def test_detail_map_takes_over_near_the_site_and_borrows_where_it_has_no_data():

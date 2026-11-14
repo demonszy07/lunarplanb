@@ -32,6 +32,10 @@ def test_lommel_seeliger_simple_cases():
     assert shading.lommel_seeliger(0.0, 0.0, 0.0, -30.0, 180.0, 30.0) == pytest.approx(0.5)
     # light below the plane of the ground: black
     assert shading.lommel_seeliger(0.0, 0.0, 0.0, -30.0, 180.0, -1.0) == 0.0
+    # the Sun's centre exactly on the ground's own horizon: half its disc still lights it, faintly
+    grazing = shading.lommel_seeliger(0.0, 0.0, 0.0, -30.0, 180.0, 0.0)
+    assert 0.0 < grazing < shading.lommel_seeliger(0.0, 0.0, 0.0, -30.0, 180.0, 0.3)
+    assert shading.soft_mu0(-0.01) == 0.0 and shading.soft_mu0(0.2) == 0.2
     # a slope facing the light is brighter than flat ground, one facing away is black
     toward = shading.lommel_seeliger(0.0, -0.3, 0.0, -5.0, 180.0, 1.0)     # normal leans south, Sun in the south
     flat = shading.lommel_seeliger(0.0, 0.0, 0.0, -5.0, 180.0, 1.0)

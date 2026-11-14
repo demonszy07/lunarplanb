@@ -42,17 +42,26 @@ const { serve } = require("./shoot.cjs");
   const fullBytes = downloads.reduce((sum, d) => sum + d.bytes, 0);
   const afterSky = downloads.length;
   const starsWithEye = await page.evaluate(() => document.documentElement.dataset.stars);
+  await page.click("#notes-toggle");
   await page.selectOption("#seen-by", "camera");
   await page.waitForTimeout(100);
   const starsWithCamera = await page.evaluate(() => document.documentElement.dataset.stars);
   const cameraNote = await page.textContent("#seen-note");
   await page.selectOption("#seen-by", "eye");
+  await page.click("#notes-toggle");
 
   const values = await page.$$eval("td[data-key]", (cells) =>
     Object.fromEntries(cells.map((c) => [c.dataset.key, JSON.parse(c.dataset.value)])));
   const verdict = await page.textContent("#verdict");
   const sideScroll = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  // narrow screen: one line over the sky; the "i" button opens the other notes
+  const topLineHeight = await page.evaluate(() => document.getElementById("stretch-a").getBoundingClientRect().height);
+  const lookBefore = await page.locator("#look").isVisible();
+  await page.click("#notes-toggle");
   const lookShown = await page.locator("#look").isVisible();
+  const seenShown = await page.locator("#seen-by").isVisible();
+  await page.click("#notes-toggle");
+  const lookAfter = await page.locator("#look").isVisible();
 
   // the arrow keys move the clock: three hours, then a day
   const met = async () => Number(await page.evaluate(() => document.documentElement.dataset.met));
@@ -71,6 +80,16 @@ const { serve } = require("./shoot.cjs");
   await page.keyboard.press("Home");
   await waitMet(0); steps.push(await met());
 
+  // the block above the flight plan keeps its height whatever it says
+  const blockHeights = [];
+  for (const key of ["Home", "End"]) {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(150);
+    blockHeights.push(await page.evaluate(() => document.getElementById("scene-col").getBoundingClientRect().height));
+  }
+  await page.keyboard.press("Home");
+  await waitMet(0);
+
   // a plan change: panels at 5 m loads one more site file and removes the note
   const noteAt2m = await page.locator("#low-note").isVisible();
   await page.selectOption("#a-height", "5");
@@ -82,7 +101,8 @@ const { serve } = require("./shoot.cjs");
   await browser.close();
   server.close();
   process.stdout.write(JSON.stringify({
-    values, values5m, verdict, errors, sideScrollAt360: sideScroll, lookShown, steps, at27, noteAt2m,
+    values, values5m, verdict, errors, sideScrollAt360: sideScroll, lookShown, seenShown, lookBefore, lookAfter,
+    topLineHeight, blockHeights, steps, at27, noteAt2m,
     loadingTextSeen: statusWhileLoading === "Loading sky data" && tableWhileLoading === 0,
     sentenceWhileLoading, firstLoad, firstLoadBytes, skyLoad, fullBytes,
     starsWithEye, starsWithCamera, cameraNote,

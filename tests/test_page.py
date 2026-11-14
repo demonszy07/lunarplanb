@@ -44,8 +44,11 @@ def test_page_numbers_match_python(capsys):
     assert page["loadingTextSeen"]
     assert page["sentenceWhileLoading"].startswith("Land at")      # the page opens before the data
     assert not page["sideScrollAt360"]
-    assert page["lookShown"]                                       # narrow screen: a window, not all 360 degrees
+    # narrow screen: a window, not all 360 degrees; one line over the sky, the rest behind "i"
+    assert page["topLineHeight"] < 24
+    assert not page["lookBefore"] and page["lookShown"] and page["seenShown"] and not page["lookAfter"]
     assert page["steps"] == [0, 3, 27, 26, 240, 0]                 # arrows 1 h, Shift 1 day, End, Home
+    assert page["blockHeights"][0] == page["blockHeights"][1]
     assert page["at27"]["label"] == "MET 027:00"
     assert page["at27"]["whenA"] == "2027-03-02 03:00 UTC"
     assert page["noteAt2m"]
@@ -72,15 +75,21 @@ def test_page_numbers_match_python(capsys):
             if which == "values":
                 lines.append(f"{key:22} A browser {got['a.' + key]!s:>19} python {want['a'][key]!s:>19} | "
                              f"B browser {got['b.' + key]!s:>19} python {want['b'][key]!s:>19}")
-    assert page["firstLoadBytes"] < 300000
-    # the real sky comes after the first view, in this order, and the whole stays under 800 kB
+    # the one size rule: the first screen stays near 300 kB compressed
+    first_raw = first_wire = 0
+    for d in page["firstLoad"]:
+        raw, wire = publish.sizes(os.path.join(ROOT, "dist", d["url"] or "index.html"))
+        assert raw == d["bytes"]
+        first_raw += raw
+        first_wire += wire
+    assert first_wire < 320000
+    # the real sky comes after the first view, in this order
     assert page["skyLoad"] == ["js/realsky.js", "data/stars.bin", "data/earth.bin", "data/earth.jpg"]
-    assert page["fullBytes"] < 800000
     assert page["starsWithEye"] == "shown"
     assert page["starsWithCamera"] == "hidden"            # the Sun is in view at landing
     assert "Apollo" in page["cameraNote"]
     with capsys.disabled():
         print("\n" + "\n".join(lines))
         print("verdict:", page["verdict"])
-        print(f"first load: {page['firstLoadBytes']} bytes in {len(page['firstLoad'])} files; "
+        print(f"first screen: {first_raw} bytes in {len(page['firstLoad'])} files, {first_wire} compressed; "
               f"with the real sky: {page['fullBytes']} bytes")

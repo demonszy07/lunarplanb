@@ -55,8 +55,11 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
 - Vertical exaggeration is always labelled. Motion only answers the user.
 - No framework. 2D in Canvas or SVG. 3D (three.js) loads in the background after the 2D view
   is up, and the page stays 2D on slow devices. Works at 360 px.
-- Budget: first load (2D view visible) under 300 kB; full experience under 800 kB;
-  each site file under 100 kB.
+- On narrow screens one line sits over the sky (name and stretch); every other note is behind
+  the "i" button or under the view.
+- Size: the first screen (2D view and flight plan) stays near 300 kB compressed (gzip).
+  No hard limit on the total; 3D and the real sky load in the background. Always report
+  compressed and uncompressed sizes. Weak devices must not stutter (see the 40 ms rule).
 
 ## Do not build
 Decorative spinning globe, link budget, battery sizing, thermal model, chat assistant,
@@ -70,15 +73,43 @@ more than seven terrain sites.
   opens without a VPN, then put both addresses in the README.
 
 ## Status
-- Stage 1 of 4 done (14 Nov): the approved screen. Sticky view from the site, plan sentences,
-  flight plan where scrolling is the clock, countdowns, verdict, mission summary.
-- Stage 2 of 4 done (14 Nov): first 5 km of every site from its 5 m tile; ground lit by the
-  Lommel-Seeliger law from [id]_view.bin (which way the ground faces); Earthlight when the Sun
-  is down. Barker comparison rerun, numbers identical. First load 273 kB (sky.bin now keeps the
-  Sun's distance once a day). Not done: shadows cast by other hills (planned for the 3D view).
-- Stage 3 of 4 done (14 Nov): real stars (Yale BSC5, magnitude 5.5 and brighter, IAU Moon
-  orientation, checked against Horizons to 0.008 deg), Earth as the Blue Marble picture with
-  true phase and rotation, "Seen by the eye / a camera". These load after the first view.
-  First load 278 kB, with the real sky 323 kB.
-- Next: stage 4 (3D hero). Before any code: write the approach in five points and wait for
-  the user's approval.
+- Stages 1 to 3 of 4 are done and published (14 Nov): the approved screen; 5 m near terrain,
+  Lommel-Seeliger ground and Earthlight; real stars (checked against Horizons to 0.008 deg),
+  Blue Marble Earth, "Seen by the eye / a camera".
+- Fixes after stage 3 (14 Nov): narrow screens show one line over the sky, notes behind "i";
+  on roomy desktops the flight plan is wider and the mission summary sits lower left; the
+  near ground is smooth (hit point between march steps, finer normal steps, soft terminator).
+- Sizes now: first screen 282 kB on disk, 236 kB compressed; with the real sky 328 kB / 275 kB.
+- Not done: shadows cast by other hills; the date picker shows the browser's local format.
+
+### Stage 4, approved plan (start in a new session; do not re-ask for approval of these points)
+1. Terrain data: one file per site, [id]_3d.bin, three nested height grids centred on the
+   site: 40 x 40 km at 160 m (from the 80 m map); +-2 km at 20 m (averaged from the 5 m tile);
+   +-250 m at 5 m (the tile itself). The Moon's curvature goes into the vertex positions
+   (115 m drop at 20 km). About 230 kB per site.
+2. Scene: perspective camera at panel height, horizontal field of view 70 degrees, no vertical
+   stretch (say so on screen). Direction by dragging sideways or "Looking toward". Beyond
+   20 km a backdrop strip built from the 300 km skyline; stars as points from the same
+   catalogue; Earth as a sphere with the Blue Marble picture; Sun as a disc of true angular
+   size with a hard-edged flare. "View: [eye level / panorama]" switches back to 2D.
+   Plan B's view stays 2D.
+3. Light and shadow: directional light from the true Sun direction; a custom shader with the
+   Lommel-Seeliger law; shadow map in two steps (the whole 40 km, and the nearest 1 km).
+   Mountains beyond 20 km are not in the mesh: use the site's far-horizon profile and darken
+   all the near ground when the Sun is below it. That is an approximation; write it in Limits.
+4. Loading and fallback: three.js bundled with only the parts used (esbuild; the bundle is
+   committed so the host needs no build). It loads after the real sky. If the median frame
+   time in the first frames is over 40 ms, or WebGL2 is missing, remove 3D and stay 2D.
+   No continuous animation: draw only when the cursor or the view direction changes.
+5. Check: five moments (Sun fully in view, fully hidden, partly cut by near terrain, partly
+   cut by far terrain, just after sunset). For each, measure the visible share of the Sun's
+   disc in 3D (pixels) and put it beside the 2D number. "In view / not in view" must agree in
+   all five. The mesh (160 m, 20 m) and the 2D pipeline (80 m, 5 m) differ, so edge cases may
+   disagree: report as is, never tune to match.
+- Size decision for stage 4: no limit on the total. Keep the first screen near 300 kB
+  compressed; measure and report compressed and uncompressed sizes of the three.js bundle,
+  the terrain file and the total.
+- Cut order if time is short: second shadow step, then Earth as a sphere (reuse the painted
+  2D disc), then stars in 3D.
+- At the end of stage 4: commit and push, one screenshot, update this note, add three.js
+  (MIT) and anything else new to the README sources.
