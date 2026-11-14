@@ -14,6 +14,8 @@ python pipeline/ephemeris.py      # downloads the Horizons table to data/raw/
 python pipeline/sky.py            # writes site/data/sky.bin for the browser
 python pipeline/check_sky.py      # compares with direct Horizons queries
 python pipeline/build_sites.py    # writes data/sites/ (needs the terrain files, see the file)
+python pipeline/realsky.py        # writes site/data/stars.bin, earth.bin, earth.jpg (needs data/raw/sky/, see the file)
+python pipeline/check_stars.py    # checks the star positions against Horizons
 python tests/make_vectors.py      # writes tests/vectors.json from the Python reference
 python pipeline/monthly.py data/sites/site01.json 2027
 python pipeline/compare_barker.py  # check against Barker et al. 2021 (needs extra downloads, see the file)
@@ -54,6 +56,8 @@ Ground heights in this table were read from `LDEM_80S_80MPP_ADJ.TIF` when the po
 - Mission metrics are sampled once per step (one hour by default), so durations and times to first sunset are known to one step.
 - The browser table is sampled every 3 hours and stored as 16-bit numbers; against the hourly table this adds at most 0.001 degrees. The Sun's distance is kept once a day (largest error 2,600 km of 150 million, which changes the Sun's apparent size by less than 0.00001 degrees).
 - The picture of the ground: slopes are lit by the Lommel-Seeliger law from which way they face, at one point per degree of azimuth and 0.2 degrees of elevation. Shadows that one hill casts on another are not computed, and the brightness of all the ground follows the share of the Sun seen from the site, so distant peaks that would still catch the Sun after local sunset go dark with it. When the Sun is down the ground is drawn by Earthlight with the exposure raised; the drawn brightness is a display choice, not the true ratio (about 1 to 10,000, see Sources), and it scales with the lit share of Earth's disc, which is a simplification of how Earth's brightness changes with phase. The picture is for orientation; the numbers do not use it.
+- Stars: 2,887 stars of magnitude 5.5 and brighter at their catalogue places for the year 2000; their own motion since then (at most about 0.03 degrees for the nearest stars) and the aberration of light are left out. The Moon's orientation for the stars comes from the IAU series, good to about 0.005 degrees. Checked against Horizons with far planets standing in for stars, 72 comparisons: largest difference 0.008 degrees (`data/stars_check.txt`). "Seen by the eye" always shows the stars, as for an eye shaded from the Sun; "a camera" hides them whenever any part of the Sun is in view, a simple rule.
+- Earth's picture: NASA's cloud-free Blue Marble, 256 pixels wide, brightened for the screen; real Earth has clouds. It is turned to the point that faces the Moon's centre (the site sees up to 0.26 degrees more of one side), kept every 12 hours (within 0.07 degrees), and Earth's pole is taken where it was in 2000 (0.15 degrees off). The night side is black.
 
 ## Check against Barker et al. (2021)
 
@@ -86,3 +90,7 @@ What was not measured: the area average on the clones, which is the exact Case A
 - Near terrain: the 5 m/pixel site maps of the same PGDA product, https://pgda.gsfc.nasa.gov/products/78 (`Site01`, `Site04`, `Site07`, `Site11`, `Site20`, `Site23` and `Haworth`, files `*_final_adj_5mpp_surf.tif`), used for the first 5 km around each site.
 - Ground brightness: the Lommel-Seeliger law, I = mu0 / (mu0 + mu), as given in Hapke, B. (2012), "Theory of Reflectance and Emittance Spectroscopy", 2nd ed., Cambridge University Press.
 - Earthlight: Glenar, D. A., et al. (2019), "Earthshine as an illumination source at the Moon", Icarus 321, 841-856, https://doi.org/10.1016/j.icarus.2018.12.025 (preprint https://arxiv.org/abs/1904.00236): about 0.15 W/m2 on the Moon from the full Earth, roughly half reflected sunlight and half thermal emission, about 0.01 % of sunlight. Only the abstract was read for this project.
+- Stars: Hoffleit, D., and Warren, W. H. Jr. (1991), "The Bright Star Catalogue, 5th Revised Edition (Preliminary Version)", Yale University Observatory. Read from the JSON conversion `bsc5-short.json` at https://github.com/brettonw/YaleBrightStarCatalog (conversion under the MIT licence).
+- Moon orientation for the stars: Archinal, B. A., et al. (2011), "Report of the IAU Working Group on Cartographic Coordinates and Rotational Elements: 2009", Celestial Mechanics and Dynamical Astronomy 109, 101-135, https://doi.org/10.1007/s10569-010-9320-4. The paper could not be opened from the build environment; the coefficients were typed in and then checked numerically against Horizons (see Limits).
+- Earth's facing point: NASA/JPL Horizons, Earth (399) seen from the Moon's centre (500@301), quantity 14, hourly, 2026-01-01 to 2031-01-01.
+- Picture of Earth: NASA Earth Observatory, Blue Marble Next Generation (Stöckli, R., et al. 2005), public domain. The file `bmng.jpg` was taken from the `basemap-data` 2.0.0 Python package and reduced to 256 x 128 pixels; which month of the series it shows is not stated there.

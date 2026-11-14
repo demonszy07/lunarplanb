@@ -26,15 +26,6 @@ const LABEL = "#9A9A9A";
 
 const wrap180 = (a) => ((a + 180) % 360 + 360) % 360 - 180;
 
-// Placeholder star field: fixed points, the same on every visit.
-const STARS = (() => {
-  let seed = 20261114;
-  const next = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
-  return Array.from({ length: 70 }, () => ({
-    az: next() * 360, el: -2 + next() * 14, alpha: 0.25 + next() * 0.2,
-  }));
-})();
-
 // Read a [site]_view.bin file: for every degree of azimuth and every 0.2
 // degrees of elevation below the skyline, which way the ground faces.
 export function parseView(buffer) {
@@ -203,6 +194,32 @@ function drawEarth(ctx, g, view) {
   ctx.restore();
 }
 
+// Stars at their real places (azimuth, elevation, magnitude from realsky.js).
+// Brighter stars are a little larger and whiter; the faintest are barely there.
+function drawStars(ctx, g, stars) {
+  ctx.fillStyle = "#fff";
+  const half = g.windowDeg / 2;
+  const faintest = g.width < 600 && g.full ? 4.5 : 5.5;     // a small full panorama gets fewer stars
+  for (let i = 0; i < stars.count; i++) {
+    if (stars.mag[i] > faintest) break;                     // the list is sorted, brightest first
+    const el = stars.el[i];
+    if (el < EL_BOTTOM || el > EL_TOP) continue;
+    const offset = wrap180(stars.az[i] - g.centre);
+    if (Math.abs(offset) > half) continue;
+    const mag = stars.mag[i];
+    ctx.globalAlpha = Math.min(1, Math.max(0.28, 1 - 0.11 * (mag + 1.5)));
+    const size = mag < 0.5 ? 2 : mag < 2.5 ? 1.5 : 1;
+    ctx.fillRect(g.width / 2 + offset * g.h - size / 2, g.y(el) - size / 2, size, size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Size in device pixels of the picture of Earth for a canvas of this size.
+export function earthPictureSize(view, height) {
+  const ratio = window.devicePixelRatio || 1;
+  return Math.max(8, Math.ceil(view.earthDiameter * (height / (EL_TOP - EL_BOTTOM)) * ratio));
+}
+
 function terrainPath(ctx, g, profile) {
   const from = g.centre - g.windowDeg / 2 - 1, to = g.centre + g.windowDeg / 2 + 1;
   ctx.beginPath();
@@ -229,14 +246,13 @@ export function drawScene(canvas, site, view, options = {}) {
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = "#fff";
-  for (const s of STARS) {
-    ctx.globalAlpha = s.alpha;
-    ctx.fillRect(Math.round(g.x(s.az)), Math.round(g.y(s.el)), 1, 1);
+  if (options.stars) drawStars(ctx, g, options.stars);
+  if (options.earthPicture) {
+    const x = g.x(view.earthAz), y = g.y(view.earthEl), r = (view.earthDiameter / 2) * g.v;
+    ctx.drawImage(options.earthPicture, x - r, y - r, 2 * r, 2 * r);
+  } else {
+    drawEarth(ctx, g, view);
   }
-  ctx.globalAlpha = 1;
-
-  drawEarth(ctx, g, view);
   drawSun(ctx, g, view);
 
   // ground: everything under the skyline, then the skyline itself

@@ -22,6 +22,9 @@ FIRST_LOAD = ["index.html", "style.css", "js/app.js", "js/sky.js", "js/visibilit
               "data/sites/site01_view.bin"]
 
 
+SKY_LOAD = ["js/realsky.js", "data/stars.bin", "data/earth.bin", "data/earth.jpg"]
+
+
 def main(out: str = "dist") -> int:
     out = os.path.join(ROOT, out)
     shutil.rmtree(out, ignore_errors=True)
@@ -33,6 +36,7 @@ def main(out: str = "dist") -> int:
         shutil.copy(path, os.path.join(out, "data", "sites"))
 
     ok = True
+    everything = sum(os.path.getsize(os.path.join(out, n)) for n in FIRST_LOAD + SKY_LOAD)
     total = 0
     print("first load:")
     for name in FIRST_LOAD:
@@ -41,6 +45,11 @@ def main(out: str = "dist") -> int:
         print(f"  {name:36} {size:8d} bytes")
     print(f"  {'total':36} {total:8d} bytes  (budget 300000)")
     ok &= total < 300000
+    print("after the first view (real sky):")
+    for name in SKY_LOAD:
+        print(f"  {name:36} {os.path.getsize(os.path.join(out, name)):8d} bytes")
+    print(f"  {'full experience':36} {everything:8d} bytes  (budget 800000)")
+    ok &= everything < 800000
     largest = max(os.path.getsize(p) for p in site_files)
     print(f"{len(site_files)} site files, largest {largest} bytes (budget 100000)")
     ok &= largest < 100000

@@ -36,6 +36,7 @@ if (require.main === module) (async () => {
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
     await page.goto(base);
     await page.waitForSelector("html[data-ready]", { timeout: 20000 });
+    await page.waitForSelector("html[data-stage^=sky]", { timeout: 20000 }).catch(() => {});
     if (process.env.SHOOT_SET) {
       // e.g. SHOOT_SET='a-date=2027-04-02T00:00,a-height=5' changes the plan before the picture
       const before = await page.evaluate(() => document.documentElement.dataset.ready);
@@ -47,7 +48,9 @@ if (require.main === module) (async () => {
           node.dispatchEvent(new Event("change", { bubbles: true }));
         }, [id, value]);
       }
-      await page.waitForFunction((b) => document.documentElement.dataset.ready !== b, before);
+      if (/(^|,)[ab]-/.test(process.env.SHOOT_SET)) {
+        await page.waitForFunction((b) => document.documentElement.dataset.ready !== b, before);
+      }
     }
     if (met > 0) {
       await page.keyboard.press("Home");

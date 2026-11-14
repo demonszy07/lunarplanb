@@ -73,7 +73,14 @@ def test_page_numbers_match_python(capsys):
                 lines.append(f"{key:22} A browser {got['a.' + key]!s:>19} python {want['a'][key]!s:>19} | "
                              f"B browser {got['b.' + key]!s:>19} python {want['b'][key]!s:>19}")
     assert page["firstLoadBytes"] < 300000
+    # the real sky comes after the first view, in this order, and the whole stays under 800 kB
+    assert page["skyLoad"] == ["js/realsky.js", "data/stars.bin", "data/earth.bin", "data/earth.jpg"]
+    assert page["fullBytes"] < 800000
+    assert page["starsWithEye"] == "shown"
+    assert page["starsWithCamera"] == "hidden"            # the Sun is in view at landing
+    assert "Apollo" in page["cameraNote"]
     with capsys.disabled():
         print("\n" + "\n".join(lines))
         print("verdict:", page["verdict"])
-        print(f"first load: {page['firstLoadBytes']} bytes in {len(page['firstLoad'])} files")
+        print(f"first load: {page['firstLoadBytes']} bytes in {len(page['firstLoad'])} files; "
+              f"with the real sky: {page['fullBytes']} bytes")

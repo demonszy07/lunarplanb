@@ -23,6 +23,7 @@ svg text { font-family: Jost, system-ui, sans-serif; font-variant-numeric: tabul
 .view figcaption { position: absolute; left: 20px; right: 20px; bottom: 28px; }
 .top { position: absolute; left: 20px; right: 20px; top: 14px; display: flex; justify-content: space-between; gap: 32px; color: var(--dim); }
 .brand { font-size: 14px; }
+.seen, .look { font-size: 13px; max-width: 30em; }
 .stretch { font-size: 13px; text-align: right; max-width: 30em; }
 .light { display: block; }
 .sentence { font-size: 18px; line-height: 1.45; max-width: 34em; }
@@ -76,6 +77,7 @@ a { color: inherit; }
   .view figcaption { left: 16px; right: 16px; bottom: 24px; }
   .top { left: 16px; right: 16px; top: 10px; display: block; font-size: 12px; line-height: 1.4; }
   .brand { font-size: 13px; }
+  .seen, .look { font-size: 12px; max-width: none; }
   .stretch { font-size: 12px; text-align: left; max-width: none; }
   .view-b .stretch { top: 6px; }
   .sentence { font-size: 15px; line-height: 1.4; }

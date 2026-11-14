@@ -31,11 +31,22 @@ const { serve } = require("./shoot.cjs");
   const tableWhileLoading = await page.locator("table").count();
 
   await page.waitForSelector("html[data-ready]", { timeout: 20000 });
-  // the lit ground arrives just after the view is up; it still belongs to the first load
-  for (let i = 0; i < 50 && !downloads.some((d) => d.url.endsWith("site01_view.bin")); i++) await page.waitForTimeout(100);
+  // The real sky (stars, Earth's picture) loads last, piece by piece. Everything
+  // answered up to and including the lit ground is the first load.
+  await page.waitForSelector("html[data-stage=sky]", { timeout: 20000 });
   await page.waitForTimeout(200);
-  const firstLoadBytes = downloads.reduce((sum, d) => sum + d.bytes, 0);
-  const firstLoad = downloads.slice();
+  const cut = downloads.findIndex((d) => d.url.endsWith("site01_view.bin")) + 1;
+  const firstLoad = downloads.slice(0, cut);
+  const firstLoadBytes = firstLoad.reduce((sum, d) => sum + d.bytes, 0);
+  const skyLoad = downloads.slice(cut).map((d) => d.url);
+  const fullBytes = downloads.reduce((sum, d) => sum + d.bytes, 0);
+  const afterSky = downloads.length;
+  const starsWithEye = await page.evaluate(() => document.documentElement.dataset.stars);
+  await page.selectOption("#seen-by", "camera");
+  await page.waitForTimeout(100);
+  const starsWithCamera = await page.evaluate(() => document.documentElement.dataset.stars);
+  const cameraNote = await page.textContent("#seen-note");
+  await page.selectOption("#seen-by", "eye");
 
   const values = await page.$$eval("td[data-key]", (cells) =>
     Object.fromEntries(cells.map((c) => [c.dataset.key, JSON.parse(c.dataset.value)])));
@@ -73,7 +84,8 @@ const { serve } = require("./shoot.cjs");
   process.stdout.write(JSON.stringify({
     values, values5m, verdict, errors, sideScrollAt360: sideScroll, lookShown, steps, at27, noteAt2m,
     loadingTextSeen: statusWhileLoading === "Loading sky data" && tableWhileLoading === 0,
-    sentenceWhileLoading, firstLoad, firstLoadBytes,
-    laterDownloads: downloads.slice(firstLoad.length).map((d) => d.url),
+    sentenceWhileLoading, firstLoad, firstLoadBytes, skyLoad, fullBytes,
+    starsWithEye, starsWithCamera, cameraNote,
+    laterDownloads: downloads.slice(afterSky).map((d) => d.url),
   }, null, 1));
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -76,5 +76,9 @@ more than seven terrain sites.
   Lommel-Seeliger law from [id]_view.bin (which way the ground faces); Earthlight when the Sun
   is down. Barker comparison rerun, numbers identical. First load 273 kB (sky.bin now keeps the
   Sun's distance once a day). Not done: shadows cast by other hills (planned for the 3D view).
-- Next: stage 3 (Blue Marble Earth, real stars, Eye / Camera), stage 4 (3D hero; write the
-  approach in five points and wait for approval). Stars are still placeholders.
+- Stage 3 of 4 done (14 Nov): real stars (Yale BSC5, magnitude 5.5 and brighter, IAU Moon
+  orientation, checked against Horizons to 0.008 deg), Earth as the Blue Marble picture with
+  true phase and rotation, "Seen by the eye / a camera". These load after the first view.
+  First load 278 kB, with the real sky 323 kB.
+- Next: stage 4 (3D hero). Before any code: write the approach in five points and wait for
+  the user's approval.

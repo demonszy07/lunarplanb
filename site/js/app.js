@@ -4,13 +4,17 @@
 
 import { parseSky } from "./sky.js";
 import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc } from "./plan.js";
-import { drawScene, offFrameNote, parseView, lighting } from "./scene.js";
+import { drawScene, offFrameNote, parseView, lighting, earthPictureSize } from "./scene.js";
 import { drawHead, drawTrack, PX_PER_HOUR } from "./flightplan.js";
 
 const $ = (id) => document.getElementById(id);
 const narrow = window.matchMedia("(max-width: 899px)");
 
-const state = { sky: null, sites: new Map(), grounds: new Map(), runs: null, met: 0, drawn: "" };
+const state = { sky: null, sites: new Map(), grounds: new Map(), runs: null, met: 0, drawn: "",
+                real: null, stars: null, earth: null, texture: null };
+// per view: reused star positions and the canvas that holds the picture of Earth
+const skies = [{ places: null, earthCanvas: document.createElement("canvas"), earthKey: "" },
+               { places: null, earthCanvas: document.createElement("canvas"), earthKey: "" }];
 
 // ---- the two sentences -----------------------------------------------------
 
@@ -73,9 +77,62 @@ function ground(plan) {
     load("data/sites/" + name, "binary").then((buffer) => {
       state.grounds.set(name, parseView(buffer));
       showMoment(true);
-    }).catch(() => state.grounds.delete(name));
+    }).catch(() => state.grounds.delete(name)).finally(realSky);
   }
   return state.grounds.get(name);
+}
+
+// The real sky comes last, one piece after another: the code, the stars,
+// then where Earth is facing and its picture. The view works without them.
+let realSkyStarted = false;
+async function realSky() {
+  if (realSkyStarted) return;
+  realSkyStarted = true;
+  const stage = (name) => { document.documentElement.dataset.stage = name; };
+  stage("ground");
+  try {
+    state.real = await import("./realsky.js");
+    state.stars = state.real.parseStars(await load("data/stars.bin", "binary"));
+    showMoment(true);
+    stage("stars");
+    state.earth = state.real.parseEarth(await load("data/earth.bin", "binary"));
+    const picture = new Image();
+    picture.src = "data/earth.jpg";
+    await picture.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = picture.naturalWidth;
+    canvas.height = picture.naturalHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(picture, 0, 0);
+    state.texture = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    showMoment(true);
+    stage("sky");
+  } catch (error) {
+    stage("sky-failed");                    // the drawn Earth and an empty sky stay
+  }
+}
+
+// What the real sky adds to one view at one moment.
+function skyFor(index, run, met, canvas) {
+  const sky = skies[index], view = run.views[met], hours = run.start + met;
+  const out = { stars: null, earthPicture: null };
+  if (state.stars) {
+    const hidden = $("seen-by").value === "camera" && view.sunFraction > 0;
+    sky.places = state.real.starPositions(state.stars, hours, run.site.lat, run.site.lon, sky.places);
+    out.stars = hidden ? null : sky.places;
+  }
+  if (state.texture) {
+    const size = earthPictureSize(view, canvas.clientHeight);
+    const key = [run.plan.site, hours, size].join();
+    if (sky.earthKey !== key) {
+      sky.earthKey = key;
+      state.real.paintEarth(sky.earthCanvas, state.texture, size, state.real.earthFacing(state.earth, hours),
+        state.real.earthPoleAngle(hours, run.site.lat, run.site.lon, view.earthAz, view.earthEl),
+        state.real.sunOnDisc(view));
+    }
+    out.earthPicture = sky.earthCanvas;
+  }
+  return out;
 }
 
 // ---- time: the scroll position is the clock --------------------------------
@@ -100,15 +157,23 @@ function scrollToMet(hours) {
 function showMoment(force) {
   if (!state.runs) return;
   const met = metFromScroll();
-  const key = [met, window.innerWidth, window.innerHeight, $("look-at").value].join();
+  const key = [met, window.innerWidth, window.innerHeight, $("look-at").value, $("seen-by").value].join();
   if (!force && key === state.drawn) return;
   state.drawn = key;
   state.met = met;
   const [a, b] = state.runs;
   const lookAt = $("look-at").value;
 
-  const ga = drawScene($("scene-a"), a.site, a.views[met], { lookAt, ground: ground(a.plan) });
-  const gb = drawScene($("scene-b"), b.site, b.views[met], { forceFull: true, compass: false, ground: ground(b.plan) });
+  const ga = drawScene($("scene-a"), a.site, a.views[met],
+    { lookAt, ground: ground(a.plan), ...skyFor(0, a, met, $("scene-a")) });
+  const gb = drawScene($("scene-b"), b.site, b.views[met],
+    { forceFull: true, compass: false, ground: ground(b.plan), ...skyFor(1, b, met, $("scene-b")) });
+  document.documentElement.dataset.stars = !state.stars ? "none yet" : $("seen-by").value === "camera" && a.views[met].sunFraction > 0 ? "hidden" : "shown";
+  $("seen-note").textContent = $("seen-by").value === "eye"
+    ? "Stars as an eye shaded from the Sun would see them."
+    : a.views[met].sunFraction > 0
+      ? "With the Sun in view, a camera set for sunlit ground records no stars, as in the Apollo photographs."
+      : "The Sun is down, so a long exposure shows the stars.";
   const light = lighting(a.views[met]).source;
   $("stretch-a").textContent = `vertical scale stretched ${ga.stretch.toFixed(0)}×, Sun and Earth widened to match`;
   $("light-a").textContent = light === "earth"
@@ -223,7 +288,7 @@ async function showPlans() {
 for (const id of ["a-site", "a-date", "a-days", "a-height", "b-choice", "b-site"]) {
   $(id).addEventListener("change", showPlans);
 }
-$("look-at").addEventListener("change", () => { fitSelects(); showMoment(true); });
+for (const id of ["look-at", "seen-by"]) $(id).addEventListener("change", () => { fitSelects(); showMoment(true); });
 window.addEventListener("resize", fitSelects);
 
 let queued = false;
