@@ -4,6 +4,8 @@ One screen that compares two landing plans for the lunar south pole: where the S
 
 NASA Space Apps 2026, challenge "Lunar Landing Site Navigator".
 
+Live page: https://lunarplanb.vercel.app/
+
 ## Run
 
 ```
