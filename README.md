@@ -4,6 +4,8 @@ One screen that compares two landing plans for the lunar south pole: where the S
 
 NASA Space Apps 2026, challenge "Lunar Landing Site Navigator".
 
+Live page: https://demonszy07.github.io/lunarplanb/
+
 ## Run
 
 ```
@@ -16,11 +18,14 @@ python tests/make_vectors.py      # writes tests/vectors.json from the Python re
 python pipeline/monthly.py data/sites/site01.json 2027
 python pipeline/compare_barker.py  # check against Barker et al. 2021 (needs extra downloads, see the file)
 python pipeline/plot_horizon.py data/sites/site01.json data/site1_horizon.png
+python pipeline/publish.py        # gathers site/ and data/sites/ into dist/ (what gets published)
 python -m pytest tests
 ```
 
+To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. Every push to `main` publishes `dist/` to GitHub Pages (`.github/workflows/pages.yml`).
+
 The two terrain files listed under Sources go in `data/raw/` (not stored in this repository).
-The JavaScript tests need Node.js.
+The JavaScript tests need Node.js; the page test also needs Playwright.
 
 ## Sites
 
