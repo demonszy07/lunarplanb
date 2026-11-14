@@ -1,5 +1,6 @@
-"""Write data/sites/[id].json for every site: horizon profile, distances,
-site facts and where the coordinates come from.
+"""Write data/sites/[id].json (panels 2 m above the ground) and [id]_5m.json
+(panels at 5 m) for every site: horizon profile, distances, site facts and
+where the coordinates come from.
 
 All coordinates trace back to one NASA source that this build can reach:
 NASA GSFC Planetary Geodynamics Data Archive, product 78,
@@ -26,7 +27,8 @@ PGDA_DATA = "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp"
 CITATION = ("Barker, M. K., et al. (2021), Improved LOLA elevation maps for south pole landing "
             "sites: error estimates and their impact on illumination conditions, Planetary and "
             "Space Science 203, 105119, https://doi.org/10.1016/j.pss.2020.105119")
-OBSERVER_HEIGHT_M = 2.0
+# file name suffix -> height of the observer (the solar panels) above the ground
+HEIGHTS = {"": 2.0, "_5m": 5.0}
 
 ROI_RULE = ("The source gives regions of interest as polygons, each stored with one X, Y point "
             "(south polar stereographic metres). The point of the largest polygon by area was "
@@ -88,13 +90,13 @@ def main(out_dir: str = "data/sites"):
     far = Dem.from_geotiff("data/raw/LDEM_60S_240MPP_ADJ.TIF")
     os.makedirs(out_dir, exist_ok=True)
     index = []
-    for site in SITES:
+    for site, (suffix, height) in ((s, hh) for s in SITES for hh in HEIGHTS.items()):
         lat, lon = site_point(site, near)
-        h = horizon(lat, lon, OBSERVER_HEIGHT_M, near, far)
+        h = horizon(lat, lon, height, near, far)
         out = {
             "id": site["id"], "name": site["name"],
             "lat": lat, "lon": lon,
-            "observer_height_m": OBSERVER_HEIGHT_M,
+            "observer_height_m": height,
             "site_height_m": round(h["site_height_m"], 2),
             "frame": "MOON_ME, east-positive longitude, sphere 1737.4 km, no refraction",
             "azimuth": "clockwise from north; index i is i * 0.5 degrees",
@@ -112,14 +114,15 @@ def main(out_dir: str = "data/sites"):
             "elevation_deg": [round(float(v), 4) for v in h["elevation_deg"]],
             "distance_km": [round(float(v), 3) for v in h["distance_km"]],
         }
-        path = os.path.join(out_dir, site["id"] + ".json")
+        path = os.path.join(out_dir, site["id"] + suffix + ".json")
         with open(path, "w") as f:
             json.dump(out, f, separators=(",", ":"))
             f.write("\n")
         el = h["elevation_deg"]
-        index.append({"id": site["id"], "name": site["name"], "lat": lat, "lon": lon,
-                      "site_height_m": out["site_height_m"]})
-        print(f"{site['id']:9} lat {lat:9.4f} lon {lon:9.4f} height {h['site_height_m']:8.1f} m  "
+        if suffix == "":
+            index.append({"id": site["id"], "name": site["name"], "lat": lat, "lon": lon,
+                          "site_height_m": out["site_height_m"]})
+        print(f"{site['id'] + suffix:12} lat {lat:9.4f} lon {lon:9.4f} height {h['site_height_m']:8.1f} m  "
               f"horizon {el.min():6.2f}..{el.max():6.2f} deg  no-data {h['skipped']:6d}  "
               f"{os.path.getsize(path)} bytes")
     with open(os.path.join(out_dir, "index.json"), "w") as f:

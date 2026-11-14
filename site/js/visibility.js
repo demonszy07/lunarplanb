@@ -48,9 +48,9 @@ export function viewAt(table, site, hours) {
   const profile = site.elevation_deg;
   const earthFraction = discFraction(profile, s.earth.az, s.earth.el, s.earth.diameter);
   return {
-    sunAz: s.sun.az, sunEl: s.sun.el,
+    sunAz: s.sun.az, sunEl: s.sun.el, sunDiameter: s.sun.diameter,
     sunFraction: discFraction(profile, s.sun.az, s.sun.el, s.sun.diameter),
-    earthAz: s.earth.az, earthEl: s.earth.el,
+    earthAz: s.earth.az, earthEl: s.earth.el, earthDiameter: s.earth.diameter,
     earthFraction,
     earthState: earthState(earthFraction),
     earthLink: s.earth.el > horizonAt(profile, s.earth.az),

@@ -34,14 +34,28 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
 - The Python pipeline is the reference. Browser code must match it on test vectors.
 
 ## Design
-- Space theme: pure black page (#000) like the lunar sky; sparse, faint, static stars only inside sky bands.
-- Two meaningful colours only: Sun yellow = power, Earth blue = link, black = none.
-- No cards, shadows, gradients, glow, badges, emoji, decorative icons, all-caps labels.
+- Direction: a photograph from the lunar surface beside an Apollo flight plan. The space
+  feeling comes from what is really seen there, not from decoration.
+- Page and sky pure black (#000). No blue sky, haze or gradient sky.
+- Hero: the view from the plan A site, at least half the screen height, sticky. Real skyline
+  with a #3A3A3A edge line. The plan sentence sits at its lower left like a photo caption.
+  Plan B's view is smaller, beside or below.
+- Sun: white disc (#FFF8E7) with a small hard-edged flare. Earth: drawn with its true phase.
+  Terrain: lit and shadowed from the Sun's direction at the cursor time; shadow is black.
+- Stars only inside the views, at their real positions.
+- Colour code: power = Sun gold #F5D68A, link = Earth blue #6AA9FF, none = black. No red or green.
+- Time runs down the page like a flight plan. Hours are written "MET 096:00" (hours since
+  landing). Scrolling moves the cursor; arrow keys move it 1 hour, with Shift 1 day.
+- Type: Jost (OFL), weights 400 and 500 only, latin subset, self-hosted woff2. No serif.
+  Tabular numbers.
+- No cards, shadows, blur, glow, badges, emoji, decorative icons, all-caps labels.
 - A plan is edited as a sentence, not in a settings panel.
 - Plain words first; jargon only in brackets.
 - Vertical exaggeration is always labelled. Motion only answers the user.
-- No framework. 2D in Canvas or SVG. 3D (three.js) only in its own view, loaded on demand. Works at 360 px. Keyboard moves the cursor.
-- Budget: first load under 300 kB; each site file under 100 kB; each 3D terrain file under 150 kB.
+- No framework. 2D in Canvas or SVG. 3D (three.js) loads in the background after the 2D view
+  is up, and the page stays 2D on slow devices. Works at 360 px.
+- Budget: first load (2D view visible) under 300 kB; full experience under 800 kB;
+  each site file under 100 kB.
 
 ## Do not build
 Decorative spinning globe, link budget, battery sizing, thermal model, chat assistant,
@@ -53,3 +67,10 @@ more than seven terrain sites.
   restore .github/workflows/pages.yml from commit fef2a9d, have the user set
   Settings > Pages > Source to "GitHub Actions", check that the github.io address
   opens without a VPN, then put both addresses in the README.
+
+## Status
+- Stage 1 of 4 done (14 Nov): the approved screen. Sticky view from the site (skyline, Sun,
+  Earth with phase, placeholder stars and flat grey ground), plan sentences, flight plan where
+  scrolling is the clock, countdowns, verdict, mission summary. First load 252 kB.
+- Next: stage 2 (5 m near terrain, Lommel-Seeliger shading, earthshine), stage 3 (Blue Marble
+  Earth, real stars, Eye / Camera), stage 4 (3D hero; write the approach and wait for approval).

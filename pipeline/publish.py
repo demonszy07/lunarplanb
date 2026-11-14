@@ -16,8 +16,9 @@ import shutil
 import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-FIRST_LOAD = ["index.html", "js/app.js", "js/sky.js", "js/visibility.js",
-              "data/sky.bin", "data/sites/site01.json"]
+FIRST_LOAD = ["index.html", "style.css", "js/app.js", "js/sky.js", "js/visibility.js", "js/plan.js",
+              "js/scene.js", "js/flightplan.js", "fonts/jost-latin-400-normal.woff2",
+              "fonts/jost-latin-500-normal.woff2", "data/sky.bin", "data/sites/site01.json"]
 
 
 def main(out: str = "dist") -> int:
@@ -35,8 +36,8 @@ def main(out: str = "dist") -> int:
     for name in FIRST_LOAD:
         size = os.path.getsize(os.path.join(out, name))
         total += size
-        print(f"  {name:28} {size:8d} bytes")
-    print(f"  {'total':28} {total:8d} bytes  (budget 300000)")
+        print(f"  {name:36} {size:8d} bytes")
+    print(f"  {'total':36} {total:8d} bytes  (budget 300000)")
     ok &= total < 300000
     largest = max(os.path.getsize(p) for p in site_files)
     print(f"{len(site_files)} site files, largest {largest} bytes (budget 100000)")

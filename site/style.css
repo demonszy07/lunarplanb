@@ -1,0 +1,96 @@
+/* Jost, SIL Open Font License 1.1 (fonts/OFL.txt). Latin subset, two weights. */
+@font-face { font-family: Jost; font-weight: 400; font-display: swap;
+  src: url(fonts/jost-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: Jost; font-weight: 500; font-display: swap;
+  src: url(fonts/jost-latin-500-normal.woff2) format("woff2"); }
+
+:root {
+  --text: #E6E6E6; --dim: #9A9A9A; --line: #2E2E2E;
+  --power: #F5D68A; --link: #6AA9FF;
+  --cursor-y: 40vh;
+}
+html { background: #000; color: var(--text); }
+body { margin: 0; font: 400 15px/1.5 Jost, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+p { margin: 0; }
+svg text { font-family: Jost, system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+
+/* the photograph on the left stays put; the flight plan on the right scrolls */
+.mission { display: grid; grid-template-columns: minmax(0, 68fr) minmax(376px, 32fr); }
+.scene-col { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; background: #000; }
+.view { position: relative; margin: 0; }
+.view canvas { display: block; width: 100%; height: 100%; }
+.view-a { height: 56vh; flex: none; }
+.view figcaption { position: absolute; left: 20px; right: 20px; bottom: 28px; }
+.brand { position: absolute; left: 20px; top: 14px; color: var(--dim); font-size: 14px; }
+.stretch { position: absolute; right: 20px; top: 14px; color: var(--dim); font-size: 13px; text-align: right; }
+.sentence { font-size: 18px; line-height: 1.45; max-width: 34em; }
+.sentence.small { font-size: 15px; }
+.look { position: absolute; left: 20px; top: 36px; color: var(--dim); }
+
+/* the words you can change sit inside the sentence */
+select, input { font: inherit; color: #fff; background: none; border: 0; border-bottom: 1px dotted var(--dim);
+  border-radius: 0; padding: 0; margin: 0; appearance: none; -webkit-appearance: none; color-scheme: dark; }
+select { cursor: pointer; }
+select option { background: #000; color: var(--text); }
+input[type=number] { width: 2.4em; text-align: center; -moz-appearance: textfield; }
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type=datetime-local] { width: 12.5em; }
+:focus-visible { outline: 1px solid var(--text); outline-offset: 3px; }
+select:focus-visible, input:focus-visible { outline: 0; border-bottom: 1px solid #fff; }
+
+.under { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 44%; gap: 24px; padding: 16px 20px 20px; }
+.now p { margin-bottom: 10px; }
+.now .met { font-size: 22px; font-weight: 500; line-height: 1.2; }
+.tag { font-weight: 500; display: inline-block; width: 1.3em; }
+.view-b { height: 24vh; min-height: 0; align-self: start; }
+.view-b figcaption { left: 12px; right: 12px; bottom: 8px; }
+.view-b .stretch { right: 12px; top: 8px; }
+
+.plan-col { position: relative; padding: 0 20px 0 28px; border-left: 1px solid var(--line); outline: 0; touch-action: pan-y; }
+.cursor { position: sticky; top: var(--cursor-y); height: 0; z-index: 2; margin: 0 -20px 0 -28px;
+  border-top: 1px solid var(--text); pointer-events: none; }
+.cursor span { position: absolute; right: 20px; bottom: 5px; font-size: 13px; color: var(--text); background: #000; padding: 0 0 0 6px; }
+.lead { min-height: var(--cursor-y); box-sizing: border-box; padding: 20px 0 6px; display: flex; flex-direction: column; justify-content: flex-end; }
+.verdict { font-size: 20px; line-height: 1.35; font-weight: 500; margin-bottom: 12px; max-width: 22em; }
+.hint, #status { color: var(--dim); margin-bottom: 18px; }
+#track, #plan-head { display: block; overflow: visible; }
+.tail { height: calc(100vh - var(--cursor-y)); }
+
+.summary { padding: 40px 20px 64px; max-width: 760px; }
+h2 { font-size: 20px; font-weight: 500; margin: 0 0 12px; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+th, td { font-weight: 400; text-align: left; vertical-align: top; padding: 7px 0; border-top: 1px solid var(--line); }
+td, thead th + th { text-align: right; white-space: nowrap; padding-left: 14px; }
+thead th { border-top: 0; color: var(--dim); }
+.power td { color: var(--power); }
+.link td { color: var(--link); }
+td.diff { color: var(--text); }
+.note { color: var(--dim); font-size: 14px; margin-bottom: 10px; max-width: 46em; }
+a { color: inherit; }
+
+@media (max-width: 899px) {
+  .mission { display: block; }
+  .scene-col { height: auto; z-index: 3; border-bottom: 1px solid var(--text); }
+  .view-a { height: 50vh; min-height: 280px; }
+  .view figcaption { left: 16px; right: 16px; bottom: 24px; }
+  .brand { left: 16px; top: 10px; font-size: 13px; }
+  .stretch { left: 16px; right: 16px; top: 28px; font-size: 12px; text-align: left; }
+  .view-b .stretch { left: auto; top: 6px; }
+  .sentence { font-size: 15px; line-height: 1.4; }
+  .look { left: 16px; right: 16px; top: 46px; font-size: 13px; }
+  .sentence.small { font-size: 14px; }
+  .under { display: flex; flex-direction: column; gap: 6px; padding: 0 0 8px; }
+  .view-b { order: -1; height: 14vh; min-height: 84px; flex: none; align-self: stretch; border-top: 1px solid var(--line); }
+  .view-b figcaption { left: 16px; right: 16px; bottom: 4px; }
+  .now { padding: 0 16px; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; font-size: 13px; line-height: 1.35; }
+  .now p { margin: 0; }
+  .now .met { grid-row: 1 / span 2; font-size: 15px; align-self: center; }
+  .now br { display: none; }
+  .now p span + br + span::before { content: " · "; }
+  .plan-col { padding: 0 16px; border-left: 0; }
+  .cursor { display: none; }
+  .lead { min-height: 0; }
+  .summary { padding: 32px 16px 56px; }
+  th, td { font-size: 14px; }
+  td, thead th + th { padding-left: 8px; }
+}

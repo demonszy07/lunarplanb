@@ -97,3 +97,18 @@ export function skyAt(table, hours, latDeg, lonDeg, heightM = 0) {
     earth: direction(frame, ro, v.earth_lat, v.earth_lon, v.earth_km, h.earth_radius_km),
   };
 }
+
+// How Earth looks from the site: the lit share of its disc and which way the
+// lit side faces. The Sun is so far away that the lit share depends only on
+// the angle between Sun and Earth in the site's sky:
+//   lit = (1 - cos(angle)) / 2
+// towardSun is the direction from Earth to the Sun on the sky, in degrees
+// from straight up, positive toward increasing azimuth (to the right).
+export function earthPhase(sunAz, sunEl, earthAz, earthEl) {
+  const es = sunEl * RAD, ee = earthEl * RAD, d = (sunAz - earthAz) * RAD;
+  const cosAngle = Math.sin(es) * Math.sin(ee) + Math.cos(es) * Math.cos(ee) * Math.cos(d);
+  const towardSun = Math.atan2(
+    Math.sin(d) * Math.cos(es),
+    Math.cos(ee) * Math.sin(es) - Math.sin(ee) * Math.cos(es) * Math.cos(d)) / RAD;
+  return { lit: (1 - cosAngle) / 2, cosAngle, towardSun };
+}

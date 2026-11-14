@@ -77,6 +77,22 @@ def sky(table: dict, hours, lat_deg: float, lon_deg: float, height_m: float = 0.
     }
 
 
+def earth_phase(sun_az, sun_el, earth_az, earth_el):
+    """How Earth looks from the site: lit share of its disc (0 new, 1 full)
+    and the direction from Earth to the Sun on the sky, in degrees from
+    straight up, positive toward increasing azimuth.
+
+    The Sun is far enough that the lit share depends only on the angle
+    between Sun and Earth in the site's sky: lit = (1 - cos(angle)) / 2."""
+    es, ee = np.radians(sun_el), np.radians(earth_el)
+    d = np.radians(np.asarray(sun_az) - np.asarray(earth_az))
+    cos_angle = np.sin(es) * np.sin(ee) + np.cos(es) * np.cos(ee) * np.cos(d)
+    toward_sun = np.degrees(np.arctan2(
+        np.sin(d) * np.cos(es),
+        np.cos(ee) * np.sin(es) - np.sin(ee) * np.cos(es) * np.cos(d)))
+    return (1.0 - cos_angle) / 2.0, toward_sun
+
+
 # --------------------------------------------------------------------------
 # Small table for the browser
 # --------------------------------------------------------------------------
@@ -162,3 +178,4 @@ if __name__ == "__main__":
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     write_bin(reduce(ephemeris.load(args.raw), args.step), args.out)
     print(f"wrote {args.out}, {os.path.getsize(args.out)} bytes")
+

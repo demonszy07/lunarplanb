@@ -5,29 +5,59 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lunar Plan B</title>
 <meta name="description" content="Compare two landing plans for the lunar south pole: sunlight and contact with Earth over the real terrain.">
-<style>
-  :root { --text: #d8d8d8; --dim: #8a8a8a; --line: #2a2a2a; --sun: #f2c94c; --earth: #6aa9ff; }
-  html { background: #000; color: var(--text); }
-  body { margin: 0 auto; padding: 24px 16px 48px; max-width: 640px;
-         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
-  p { margin: 0 0 16px; }
-  .dim { color: var(--dim); }
-  table { width: 100%; border-collapse: collapse; margin: 0 0 16px; }
-  caption { text-align: left; padding: 0 0 8px; }
-  th, td { text-align: left; vertical-align: top; padding: 8px 0; border-top: 1px solid var(--line); font-weight: 400; }
-  td { text-align: right; white-space: nowrap; padding-left: 16px; font-variant-numeric: tabular-nums; }
-  .sun td { color: var(--sun); }
-  .earth td { color: var(--earth); }
-  a { color: inherit; }
-  small { font-size: 13px; }
-</style>
+<link rel="preload" href="fonts/jost-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h1>Lunar Plan B</h1>
-<p class="dim">Sunlight and contact with Earth for a landing plan at the Moon's south pole.</p>
-<p id="status" role="status">Loading sky data</p>
-<main id="plan"></main>
+<section class="mission" id="mission">
+  <div class="scene-col" id="scene-col">
+    <figure class="view view-a">
+      <canvas id="scene-a" aria-label="View from the plan A site: skyline, Sun and Earth at the moment under the cursor"></canvas>
+      <p class="brand">Lunar Plan B</p>
+      <p class="stretch" id="stretch-a"></p>
+      <p class="look" id="look" hidden>Looking toward <select id="look-at" aria-label="Direction of view"><option value="sun">the Sun</option><option value="earth">Earth</option></select>. <span id="off-frame"></span></p>
+      <figcaption>
+        <p class="sentence">Land at <select id="a-site" aria-label="Site"></select>
+          on <input id="a-date" type="datetime-local" value="2027-03-01T00:00" min="2026-01-01T00:00" max="2030-09-30T00:00" step="3600" aria-label="Landing date and time, UTC"> UTC,
+          operate for <input id="a-days" type="number" value="10" min="1" max="60" step="1" inputmode="numeric" aria-label="Days on the surface"> days,
+          panels at <select id="a-height" aria-label="Height of the solar panels"><option value="2">2 m</option><option value="5">5 m</option></select>.</p>
+      </figcaption>
+    </figure>
+    <div class="under">
+      <div class="now" id="now" aria-live="off">
+        <p class="met" id="met">MET 000:00</p>
+        <p><span class="tag">A</span> <span id="when-a"></span><br><span id="count-a"></span></p>
+        <p><span class="tag">B</span> <span id="when-b"></span><br><span id="count-b"></span></p>
+      </div>
+      <figure class="view view-b">
+        <canvas id="scene-b" aria-label="View from the plan B site at the same mission elapsed time"></canvas>
+        <p class="stretch" id="stretch-b"></p>
+        <figcaption>
+          <p class="sentence small">The same plan, <select id="b-choice" aria-label="How plan B differs"></select><span id="b-site-wrap" hidden>: <select id="b-site" aria-label="Site of plan B"></select></span>.</p>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="plan-col" id="plan-col" tabindex="0" role="slider" aria-label="Mission elapsed time" aria-valuemin="0" aria-valuemax="240" aria-valuenow="0">
+    <div class="cursor" id="cursor" aria-hidden="true"><span id="cursor-met">MET 000:00</span></div>
+    <div class="lead">
+      <p id="status" role="status">Loading sky data</p>
+      <p class="verdict" id="verdict"></p>
+      <p class="hint" id="hint" hidden>Scroll, drag, or use the arrow keys (Shift for a day) to move through the stay.</p>
+      <svg id="plan-head" aria-hidden="true"></svg>
+    </div>
+    <svg id="track" aria-hidden="true"></svg>
+    <div class="tail"></div>
+  </div>
+</section>
+
+<section class="summary" id="summary">
+  <h2>Mission summary</h2>
+  <div id="summary-table"></div>
+  <p class="note" id="low-note" hidden>Close to the ground, small terrain bumps matter. Real sunlight is likely lower than shown.</p>
+  <p class="note" id="site-note"></p>
+</section>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
