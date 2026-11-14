@@ -239,6 +239,38 @@ function terrainPath(ctx, g, profile) {
   }
 }
 
+// Directions along the bottom of a view, on a black band of their own so
+// they read whatever the ground behind them looks like. xOf(az) gives the
+// x position of an azimuth, or null when it is outside the view.
+export const COMPASS_BAND = 20;
+const NAMES = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+export function drawCompass(ctx, width, height, everyDeg, xOf, bothEnds) {
+  const top = height - COMPASS_BAND;
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, top, width, COMPASS_BAND);
+  ctx.fillStyle = SKYLINE;
+  ctx.fillRect(0, top, width, 1);
+  ctx.font = "13px Jost, system-ui, sans-serif";
+  ctx.textBaseline = "alphabetic";
+  const mark = (x, name, bright) => {
+    ctx.fillStyle = bright ? "#E6E6E6" : LABEL;
+    ctx.fillRect(Math.round(x) - (x > width - 1 ? 1 : 0), top, 1, 5);
+    ctx.textAlign = x < 40 ? "left" : x > width - 40 ? "right" : "center";
+    ctx.fillText(name, Math.min(Math.max(x, 5), width - 5), height - 4);
+  };
+  for (let az = 0; az < 360; az += everyDeg) {
+    const x = xOf(az);
+    if (x !== null && x >= 0 && x <= width) mark(x, NAMES[az / 45], az % 90 === 0);
+  }
+  if (bothEnds) mark(width, "north", true);
+  // a short unlabelled tick every 15 degrees between the names
+  ctx.fillStyle = SKYLINE;
+  for (let az = 0; az < 360; az += 15) {
+    const x = xOf(az);
+    if (az % everyDeg && x !== null) ctx.fillRect(Math.round(x), top, 1, 3);
+  }
+}
+
 // Draw one view. `site` has elevation_deg (720 values); `view` is the result
 // of viewAt for the moment shown. Returns the geometry used.
 export function drawScene(canvas, site, view, options = {}) {
@@ -296,18 +328,10 @@ export function drawScene(canvas, site, view, options = {}) {
   ctx.stroke();
 
   if (options.compass !== false) {
-    ctx.fillStyle = LABEL;
-    ctx.font = "12px Jost, system-ui, sans-serif";
-    ctx.textBaseline = "alphabetic";
-    const names = ["north", "east", "south", "west"];
-    for (let k = 0; k < 4; k++) {
-      const offset = wrap180(k * 90 - g.centre);
-      if (Math.abs(offset) > g.windowDeg / 2 + 0.01) continue;
-      const x = g.width / 2 + offset * g.h;
-      ctx.textAlign = x < 30 ? "left" : x > width - 30 ? "right" : "center";
-      ctx.fillText(names[k], Math.min(Math.max(x, 4), width - 4), height - 7);
-    }
-    if (g.full) { ctx.textAlign = "right"; ctx.fillText("north", width - 4, height - 7); }
+    drawCompass(ctx, width, height, g.full ? 90 : 45, (az) => {
+      const offset = wrap180(az - g.centre);
+      return Math.abs(offset) > g.windowDeg / 2 + 0.01 ? null : g.width / 2 + offset * g.h;
+    }, g.full);
   }
   return g;
 }

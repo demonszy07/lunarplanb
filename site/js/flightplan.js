@@ -5,6 +5,7 @@
 import { formatMet } from "./plan.js";
 
 export const PX_PER_HOUR = 6;
+export const TRACK_TOP = 8;          // the hour-zero line sits this far below the top of the drawing
 const POWER = "#F5D68A", LINK = "#6AA9FF", LINE = "#2E2E2E", TEXT = "#E6E6E6", DIM = "#9A9A9A";
 // x positions for a strip of the given width: time labels first, then for
 // each plan a power band, an Earth band and room for words
@@ -59,7 +60,7 @@ export function drawTrack(svg, runs, WIDTH) {
   const COLS = columns(WIDTH);
   const n = runs[0].n, height = n * PX_PER_HOUR;
   svg.replaceChildren();
-  svg.setAttribute("viewBox", `0 -8 ${WIDTH} ${height + 34}`);
+  svg.setAttribute("viewBox", `0 ${-TRACK_TOP} ${WIDTH} ${height + 34}`);
   svg.setAttribute("width", WIDTH);
   svg.setAttribute("height", height + 34);
 
@@ -115,4 +116,56 @@ export function drawTrack(svg, runs, WIDTH) {
     }
     for (const event of run.events) words(c.words, event.hour * PX_PER_HOUR, event.text, "start");
   });
+}
+
+// The whole stay in one thin strip: time runs left to right. For each plan a
+// power row (height = share of the Sun's disc in view) and an Earth row.
+// Returns where the hours sit, so a pointer position can be turned into a time.
+const OV_LABEL = 16;
+export function overviewScale(width, n) {
+  const band = Math.max(1, width - OV_LABEL);
+  return { left: OV_LABEL, band, x: (hours) => OV_LABEL + (hours / n) * band,
+           hours: (x) => Math.round(Math.min(n, Math.max(0, ((x - OV_LABEL) / band) * n))) };
+}
+export function drawOverview(canvas, runs) {
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  const n = runs[0].n, scale = overviewScale(width, n);
+  const row = Math.floor((height - 4) / 2), link = Math.max(3, Math.round(row * 0.22)), power = row - link - 3;
+  ctx.font = "500 12px Jost, system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  runs.forEach((run, i) => {
+    const top = i * (row + 4);
+    ctx.fillStyle = TEXT;
+    ctx.fillText(i ? "B" : "A", 0, top + row / 2);
+    ctx.fillStyle = POWER;
+    ctx.beginPath();
+    ctx.moveTo(scale.x(0), top + power);
+    for (let t = 0; t < n; t++) {
+      const y = top + power * (1 - run.fraction[t]);
+      ctx.lineTo(scale.x(t), y);
+      ctx.lineTo(scale.x(t + 1), y);
+    }
+    ctx.lineTo(scale.x(n), top + power);
+    ctx.fill();
+    ctx.fillStyle = LINK;
+    for (let t = 0, start = -1; t <= n; t++) {
+      const on = t < n && run.link[t];
+      if (on && start < 0) start = t;
+      if (!on && start >= 0) { ctx.fillRect(scale.x(start), top + power + 2, scale.x(t) - scale.x(start), link); start = -1; }
+    }
+    ctx.strokeStyle = LINE;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(scale.left - 0.5, top + 0.5, scale.band, power);
+    ctx.strokeRect(scale.left - 0.5, top + power + 1.5, scale.band, link + 1);
+  });
+  // a thin break at every day
+  ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+  for (let t = 24; t < n; t += 24) ctx.fillRect(Math.round(scale.x(t)), 0, 1, 2 * row + 4);
+  return scale;
 }

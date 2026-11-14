@@ -93,3 +93,61 @@ def test_page_numbers_match_python(capsys):
         print("verdict:", page["verdict"])
         print(f"first screen: {first_raw} bytes in {len(page['firstLoad'])} files, {first_wire} compressed; "
               f"with the real sky: {page['fullBytes']} bytes")
+
+
+@pytest.mark.skipif(not browser_available(), reason="node with playwright not installed")
+def test_one_cursor_for_keys_typing_taps_and_drags(capsys):
+    """Keys, the typed date, the strip under the views, a tap on an hour and
+    scrolling all move the same clock, on a desktop and on a touch phone."""
+    assert publish.main("dist") == 0
+    done = subprocess.run(["node", os.path.join(ROOT, "tests", "check_controls.cjs")],
+                          capture_output=True, text=True, check=True)
+    both = json.loads(done.stdout)
+    d, p = both["desktop"], both["phone"]
+    assert d["errors"] == [] and p["errors"] == []
+
+    # 5: the mission summary sits between the verdict and the flight plan
+    assert d["summaryBetween"] and p["summaryUnderVerdict"]
+    # 4: the words that can be changed are pointed out once
+    assert d["tip"] == "Tap the underlined words to change the plan."
+
+    # 1: in a box the arrow keys belong to the box; Escape or a click on the view returns them
+    assert d["focusInBox"] == "a-days" and "edit this box" in d["keysInBox"]
+    assert d["metAfterArrowsInBox"] == 0
+    assert d["focusAfterEscape"] == "plan-col" and d["keysAfterEscape"] == d["keysAtStart"]
+    assert "1 hour" in d["keysAtStart"] and "Shift 1 day" in d["keysAtStart"]
+    assert d["arrowsAfterEscape"]                      # 0 -> 1 -> 25 -> 1 -> 0
+    assert d["heightAfterArrowInSelect"] == "5" and d["metAfterArrowInSelect"] == 0
+    assert d["focusAfterViewClick"] == "plan-col"
+    assert not p["keysHintShown"]                      # no keyboard on a touch screen
+
+    # 2: the date is text, 24-hour UTC, and can be typed
+    assert d["dateType"] == "text" and d["dateShown"] == "2027-03-01 00:00"
+    assert d["dateTyped"] == {"value": "2027-04-02 13:00", "whenA": "2027-04-02 13:00 UTC", "focus": "plan-col"}
+    assert d["dateDigits"] == {"value": "2027-04-03 18:30", "whenA": "2027-04-03 18:30 UTC"}
+    assert d["dateOnly"] == "2027-04-05 00:00"
+    assert d["dateWrong"]["invalid"] == "true" and "2027-03-01 00:00" in d["dateWrong"]["tip"]
+    assert d["dateWrong"]["whenA"] == "2027-04-05 00:00 UTC"       # the last good plan stays on screen
+    assert d["dateBack"] == {"invalid": "false", "tip": d["tip"], "whenA": "2027-03-01 00:00 UTC"}
+    assert d["dateHourUp"] == "2027-03-01 01:00" and d["dateDayDown"] == "2027-02-28 01:00"
+
+    # 6: one cursor. The strip, the keys, the wheel, a click on an hour and a drag of the sheet
+    assert d["stripClick"]["met"] == 120 and abs(d["stripClick"]["marker"] - 120) < 0.5
+    assert d["stripClick"]["focus"] == "plan-col"
+    assert d["stripDrag"] == [140, 160, 180, 200] and abs(d["markerAfterDrag"] - 200) < 0.5
+    assert d["afterWheel"]["met"] == 211 and abs(d["afterWheel"]["marker"] - 211) < 0.5
+    assert d["afterWheel"]["cursor"] == d["afterWheel"]["label"] == "MET 211:00"
+    assert d["rowClick"] == 221 and d["afterPaperDrag"] == 211 and d["end"] == 240
+    # the same on a phone: tap and drag on the strip, tap on an hour, a finger scrolling the page
+    assert not p["sideScroll"]
+    assert p["stripTap"]["met"] == 96 and abs(p["stripTap"]["marker"] - 96) < 0.5
+    assert p["stripDrag"] == [110, 130, 150, 170]
+    assert p["rowTap"]["met"] == 180 and p["rowTap"]["label"] == "MET 180:00"
+    scrolled = p["afterScroll"]["met"] - 180
+    assert scrolled > 0 and abs(scrolled - p["fingerScrolledPx"] / 6) <= 1
+    assert abs(p["afterScroll"]["marker"] - p["afterScroll"]["met"]) < 0.5
+    with capsys.disabled():
+        print(f"\ndesktop: keys in box moved time by {d['metAfterArrowsInBox']} h; strip click {d['stripClick']['met']}, "
+              f"drag {d['stripDrag']}, wheel {d['afterWheel']['met']}, hour click {d['rowClick']}, sheet drag {d['afterPaperDrag']}")
+        print(f"phone: fixed block {p['fixedBlock']:.0f} of 740 px; strip tap {p['stripTap']['met']}, drag {p['stripDrag']}, "
+              f"hour tap {p['rowTap']['met']}, finger scroll {p['fingerScrolledPx']} px -> MET {p['afterScroll']['met']}")

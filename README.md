@@ -29,6 +29,12 @@ To look at the page on your own computer: `python pipeline/publish.py`, then `py
 The terrain files listed under Sources go in `data/raw/` (the two large maps) and `data/raw/pgda78/` (the 5 m site maps); they are not stored in this repository.
 The JavaScript tests need Node.js; the page test also needs Playwright.
 
+## Using the page
+
+- The plan is a sentence. Every underlined word with a small triangle can be changed. The landing time is typed as `2027-03-01 00:00` (24-hour clock, UTC); in that box the up and down keys step the part under the caret.
+- Time is the scroll position of the flight plan. The strip under the views shows the whole stay for both plans: tap it to jump to a moment, drag along it to run the time. A tap on an hour of the flight plan brings that hour to the cursor.
+- Arrow keys left and right move the time 1 hour, with Shift 1 day; Home and End go to landing and to the end of the stay. While a box of the sentence has the focus the arrow keys edit that box; Escape, or a click on the view or the flight plan, hands them back to time.
+
 ## Sites
 
 All seven come from one NASA source, the PGDA product "High-Resolution LOLA Topography for Lunar South Pole Sites" (https://pgda.gsfc.nasa.gov/products/78). It gives regions, not single points, so each point below was chosen by a stated rule. The rule is repeated inside every `data/sites/[id].json`.

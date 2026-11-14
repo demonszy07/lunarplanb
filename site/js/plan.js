@@ -46,6 +46,22 @@ export function formatUtc(ms) {
   return new Date(ms).toISOString().slice(0, 16).replace("T", " ") + " UTC";
 }
 
+// Read a time typed as "2027-03-01 00:00" (UTC, 24-hour clock). The marks
+// between the numbers may be anything or missing ("202703010000"), and the
+// time of day may be left out. Returns milliseconds, or NaN if it is not a date.
+export function parseUtc(text) {
+  let parts = String(text).match(/\d+/g) || [];
+  if (parts.length === 1 && /^\d{8}(\d{2}){0,2}$/.test(parts[0])) {
+    const d = parts[0];
+    parts = [d.slice(0, 4), d.slice(4, 6), d.slice(6, 8), d.slice(8, 10), d.slice(10, 12)].filter(Boolean);
+  }
+  if (parts.length < 3 || parts.length > 5 || parts[0].length !== 4 || /[a-z]/i.test(String(text).replace(/utc|t/gi, ""))) return NaN;
+  const [year, month, day, hour = 0, minute = 0] = parts.map(Number);
+  if (month < 1 || month > 12 || day < 1 || hour > 23 || minute > 59) return NaN;
+  const ms = Date.UTC(year, month - 1, day, hour, minute);
+  return new Date(ms).getUTCDate() === day ? ms : NaN;          // 31 February is not a date
+}
+
 // Unbroken runs where flags[i] is false, over samples 0..n-1.
 export function gaps(flags, n) {
   const out = [];

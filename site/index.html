@@ -25,9 +25,10 @@
       </div>
       <figcaption>
         <p class="sentence">Land at <select id="a-site" aria-label="Site"></select>
-          on <input id="a-date" type="datetime-local" value="2027-03-01T00:00" min="2026-01-01T00:00" max="2030-09-30T00:00" step="3600" aria-label="Landing date and time, UTC"> UTC,
+          on <input id="a-date" type="text" value="2027-03-01 00:00" inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="20" aria-label="Landing date and time, UTC, 24-hour clock, written as year-month-day hour:minute"> UTC,
           operate for <input id="a-days" type="number" value="10" min="1" max="60" step="1" inputmode="numeric" aria-label="Days on the surface"> days,
           panels at <select id="a-height" aria-label="Height of the solar panels"><option value="2">2 m</option><option value="5">5 m</option></select>.</p>
+        <p class="tip" id="tip">Tap the underlined words to change the plan.</p>
       </figcaption>
     </figure>
     <div class="under">
@@ -35,7 +36,6 @@
         <p class="met" id="met">MET 000:00</p>
         <p class="count"><span class="tag">A</span> <span id="when-a"></span> · <span id="count-a"></span></p>
         <p class="count"><span class="tag">B</span> <span id="when-b"></span> · <span id="count-b"></span></p>
-        <div id="summary-slot"></div>
       </div>
       <figure class="view view-b">
         <canvas id="scene-b" aria-label="View from the plan B site at the same mission elapsed time"></canvas>
@@ -46,29 +46,32 @@
         </figcaption>
       </figure>
     </div>
+    <div class="overview" id="overview">
+      <canvas id="overview-bands" aria-hidden="true"></canvas>
+      <div class="marker" id="overview-marker" aria-hidden="true"></div>
+    </div>
+    <p class="keys" id="keys">Arrow keys ← → move the time 1 hour, with Shift 1 day.</p>
   </div>
 
   <div class="plan-col" id="plan-col" tabindex="0" role="slider" aria-label="Mission elapsed time" aria-valuemin="0" aria-valuemax="240" aria-valuenow="0">
-    <div class="cursor" id="cursor" aria-hidden="true"><span id="cursor-met">MET 000:00</span></div>
     <div class="lead">
       <p id="status" role="status">Loading sky data</p>
       <p class="verdict" id="verdict"></p>
-      <p class="hint" id="hint" hidden>Scroll, drag, or use the arrow keys (Shift for a day) to move through the stay.</p>
+      <div class="summary" id="summary">
+        <h2>Mission summary</h2>
+        <div id="summary-table"></div>
+        <p class="note" id="low-note" hidden>Close to the ground, small terrain bumps matter. Real sunlight is likely lower than shown.</p>
+      </div>
+      <p class="hint" id="hint" hidden>Scroll the flight plan, tap an hour in it, or drag the strip under the views to move through the stay.</p>
       <svg id="plan-head" aria-hidden="true"></svg>
     </div>
+    <div class="cursor" id="cursor" aria-hidden="true"><span id="cursor-met">MET 000:00</span></div>
     <svg id="track" aria-hidden="true"></svg>
     <div class="tail"></div>
   </div>
 </section>
 
 <section class="foot">
-  <div id="summary-home">
-    <div class="summary" id="summary">
-      <h2>Mission summary</h2>
-      <div id="summary-table"></div>
-      <p class="note" id="low-note" hidden>Close to the ground, small terrain bumps matter. Real sunlight is likely lower than shown.</p>
-    </div>
-  </div>
   <p class="note" id="site-note"></p>
 </section>
 <script type="module" src="js/app.js"></script>

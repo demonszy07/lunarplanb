@@ -30,7 +30,9 @@ if (require.main === module) (async () => {
   const base = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch();
   for (const [name, width, height] of [["desktop", 1440, 900], ["phone", 360, 740]]) {
-    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2 });
+    // the phone is a touch screen, as a real one is
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2,
+      ...(name === "phone" ? { isMobile: true, hasTouch: true } : {}) });
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -62,7 +64,8 @@ if (require.main === module) (async () => {
       await page.click(process.env.SHOOT_CLICK);        // e.g. SHOOT_CLICK='#notes-toggle'
     }
     await page.waitForTimeout(600);
-    await page.screenshot({ path: path.join(out, `${name}${suffix}.png`) });
+    if (process.env.SHOOT_HOVER) await page.hover(process.env.SHOOT_HOVER).catch(() => {});
+    await page.screenshot({ path: path.join(out, `${name}${suffix}.png`), fullPage: !!process.env.SHOOT_FULL });
     const info = await page.evaluate(() => ({
       met: document.documentElement.dataset.met,
       sideScroll: document.documentElement.scrollWidth > window.innerWidth,

@@ -2,7 +2,7 @@
 // cases given on stdin (compared with pipeline/sky.py by tests/test_plan.py).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { gaps, changes, untilChange, countdownText, formatMet, formatUtc, planB, siteFile, verdict } from "../site/js/plan.js";
+import { gaps, changes, untilChange, countdownText, formatMet, formatUtc, parseUtc, planB, siteFile, verdict } from "../site/js/plan.js";
 import { earthPhase } from "../site/js/sky.js";
 import { lommelSeeliger } from "../site/js/scene.js";
 
@@ -23,6 +23,21 @@ assert.equal(formatMet(0), "MET 000:00");
 assert.equal(formatMet(96), "MET 096:00");
 assert.equal(formatMet(1440), "MET 1440:00");
 assert.equal(formatUtc(Date.parse("2027-03-05T07:00:00Z")), "2027-03-05 07:00 UTC");
+
+// the landing time as typed: 24-hour UTC, marks between the numbers optional
+const t0 = Date.parse("2027-03-01T00:00:00Z");
+assert.equal(parseUtc("2027-03-01 00:00"), t0);
+assert.equal(parseUtc(" 2027-03-01T00:00 UTC "), t0);
+assert.equal(parseUtc("2027-03-01"), t0);
+assert.equal(parseUtc("20270301"), t0);
+assert.equal(parseUtc("202703011830"), t0 + 18.5 * 3600000);
+assert.equal(parseUtc("2027-3-1 7"), t0 + 7 * 3600000);
+assert.equal(parseUtc("2027.03.01 23:59"), t0 + (23 * 60 + 59) * 60000);
+for (const wrong of ["", "tomorrow", "01/03/2027", "2027-02-30 00:00", "2027-13-01", "2027-03-01 24:00",
+                     "2027-03-01 12:60", "2027-03", "2027-03-01 1 pm", "27-03-01 00:00"]) {
+  assert.ok(Number.isNaN(parseUtc(wrong)), wrong);
+}
+assert.equal(formatUtc(parseUtc("202703011830")), "2027-03-01 18:30 UTC");
 
 const a = { site: "site01", landingMs: Date.parse("2027-03-01T00:00:00Z"), days: 10, height: 2 };
 assert.equal(planB(a, "week").landingMs - a.landingMs, 168 * 3600000);

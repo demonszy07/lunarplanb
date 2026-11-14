@@ -3,14 +3,14 @@
 // The page opens first; the sky table and site files load after it.
 
 import { parseSky } from "./sky.js";
-import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc } from "./plan.js";
+import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc, parseUtc } from "./plan.js";
 import { drawScene, offFrameNote, parseView, lighting, earthPictureSize } from "./scene.js";
-import { drawHead, drawTrack, stripWidth, PX_PER_HOUR } from "./flightplan.js";
+import { drawHead, drawTrack, drawOverview, stripWidth, PX_PER_HOUR, TRACK_TOP } from "./flightplan.js";
 
 const $ = (id) => document.getElementById(id);
 const narrow = window.matchMedia("(max-width: 899px)");
 
-const state = { sky: null, sites: new Map(), grounds: new Map(), runs: null, met: 0, drawn: "",
+const state = { sky: null, sites: new Map(), grounds: new Map(), runs: null, met: 0, drawn: "", scale: null,
                 real: null, stars: null, earth: null, texture: null };
 // per view: reused star positions and the canvas that holds the picture of Earth
 const skies = [{ places: null, earthCanvas: document.createElement("canvas"), earthKey: "" },
@@ -23,30 +23,39 @@ function fillSelect(select, pairs, value) {
   select.value = value;
 }
 // A select is as wide as its longest option; make it as wide as the chosen
-// words so it sits in the sentence like any other word.
+// words so it sits in the sentence like any other word. The date box too.
 const ruler = document.createElement("canvas").getContext("2d");
-function fitSelect(select) {
-  const style = getComputedStyle(select);
+function fitField(field) {
+  const style = getComputedStyle(field);
   ruler.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-  const label = select.selectedOptions[0] ? select.selectedOptions[0].text : "";
-  select.style.width = Math.ceil(ruler.measureText(label).width) + 2 + "px";
+  const label = field.matches("select") ? (field.selectedOptions[0] ? field.selectedOptions[0].text : "") : field.value;
+  field.style.width = Math.ceil(ruler.measureText(label).width) + 2 + "px";
 }
-function fitSelects() { document.querySelectorAll("select").forEach(fitSelect); }
+function fitFields() { document.querySelectorAll("select, input[type=text]").forEach(fitField); }
 
 fillSelect($("a-site"), SITES, "site01");
 fillSelect($("b-choice"), B_CHOICES, "week");
 fillSelect($("b-site"), SITES, "malapert");
 
+// The landing time is typed as text, always shown as "2027-03-01 00:00" (UTC).
+const TIP = $("tip").textContent;
+function readDate() {
+  const field = $("a-date"), ms = parseUtc(field.value);
+  field.setAttribute("aria-invalid", String(!Number.isFinite(ms)));
+  if (Number.isFinite(ms)) field.value = formatUtc(ms).slice(0, 16);
+  return ms;
+}
+
 function readPlans() {
   const days = Math.min(60, Math.max(1, Math.round(Number($("a-days").value) || 1)));
   const a = {
     site: $("a-site").value,
-    landingMs: Date.parse($("a-date").value + ":00Z"),
+    landingMs: readDate(),
     days,
     height: Number($("a-height").value),
   };
   $("b-site-wrap").hidden = $("b-choice").value !== "site";
-  fitSelects();
+  fitFields();
   return [a, planB(a, $("b-choice").value, $("b-site").value)];
 }
 
@@ -136,20 +145,28 @@ function skyFor(index, run, met, canvas) {
 }
 
 // ---- time: the scroll position is the clock --------------------------------
+// One source of truth: how far the flight plan is scrolled. The arrow keys, a
+// tap on an hour and the strip under the views all scroll the page, and
+// everything on screen is drawn from where the page then is.
 
-function cursorY() {
-  return narrow.matches ? $("scene-col").getBoundingClientRect().bottom : $("cursor").getBoundingClientRect().top;
+// The line the flight plan is read at: the lower edge of the fixed views on a
+// narrow screen, otherwise where the cursor line holds still.
+function readLine() {
+  return narrow.matches ? $("scene-col").getBoundingClientRect().bottom : parseFloat(getComputedStyle($("cursor")).top);
 }
+const trackZero = () => $("track").getBoundingClientRect().top + TRACK_TOP;
 
 function metFromScroll() {
   if (!state.runs) return 0;
-  const hours = (cursorY() - $("track").getBoundingClientRect().top) / PX_PER_HOUR;
+  const hours = (readLine() - trackZero()) / PX_PER_HOUR;
   return Math.round(Math.min(state.runs[0].n, Math.max(0, hours)));
 }
 
 function scrollToMet(hours) {
-  const target = Math.min(state.runs[0].n, Math.max(0, hours));
-  window.scrollBy(0, $("track").getBoundingClientRect().top + target * PX_PER_HOUR - cursorY());
+  const target = Math.round(Math.min(state.runs[0].n, Math.max(0, hours)));
+  const y = window.scrollY + trackZero() + target * PX_PER_HOUR - readLine();
+  // landing is every position above the first hour line: stay where the page is if it is there
+  window.scrollTo(0, target === 0 ? Math.min(window.scrollY, y) : y);
 }
 
 // ---- drawing ---------------------------------------------------------------
@@ -190,6 +207,7 @@ function showMoment(force) {
   const label = formatMet(met);
   $("met").textContent = label;
   $("cursor-met").textContent = label;
+  if (state.scale) $("overview-marker").style.transform = `translateX(${state.scale.x(met).toFixed(1)}px)`;
   for (const [name, run] of [["a", a], ["b", b]]) {
     const c = countdownText(run, met);
     $("when-" + name).textContent = formatUtc(run.plan.landingMs + met * 3600000);
@@ -270,14 +288,9 @@ function drawPlan(onlyIfChanged) {
   drawTrack($("track"), state.runs, width);
 }
 
-// On a roomy screen the mission summary sits under the countdowns, beside
-// plan B's view; otherwise it follows the flight plan.
-const roomy = window.matchMedia("(min-width: 900px) and (min-height: 800px)");
-function placeSummary() {
-  $(roomy.matches ? "summary-slot" : "summary-home").append($("summary"));
+function drawStrip() {
+  if (state.runs) state.scale = drawOverview($("overview-bands"), state.runs);
 }
-roomy.addEventListener("change", placeSummary);
-placeSummary();
 
 // the "i" button on narrow screens opens the notes about the view
 $("notes-toggle").addEventListener("click", () => {
@@ -293,7 +306,7 @@ async function showPlans() {
   const status = $("status");
   try {
     const plans = readPlans();
-    if (!Number.isFinite(plans[0].landingMs)) throw new RangeError("date");
+    if (!Number.isFinite(plans[0].landingMs)) throw new SyntaxError("date");
     const sites = await Promise.all(plans.map(site));
     if (mine !== request) return;                 // a newer change is already on its way
     const keep = state.met;
@@ -301,25 +314,31 @@ async function showPlans() {
     const [a, b] = state.runs;
     $("verdict").textContent = verdict(a.metrics, b.metrics, a.n);
     drawPlan();
+    drawStrip();
     showSummary(a, b);
     status.hidden = true;
+    $("tip").textContent = TIP;
     $("hint").hidden = false;
-    if (keep > 0) scrollToMet(Math.min(keep, a.n));
+    scrollToMet(Math.min(keep, a.n));             // the page above the plan may have changed height
     showMoment(true);
     document.documentElement.dataset.ready = String(mine);
   } catch (error) {
     status.hidden = false;
-    status.textContent = error instanceof RangeError
-      ? "That plan runs outside the sky table (2026 to 2030). Pick an earlier date or a shorter stay."
-      : "Could not load sky data. " + error.message;
+    status.textContent = error instanceof SyntaxError
+      ? "Write the landing time like 2027-03-01 00:00 (24-hour clock, UTC)."
+      : error instanceof RangeError
+        ? "That plan runs outside the sky table (2026 to 2030). Pick another date or a shorter stay."
+        : "Could not load sky data. " + error.message;
+    // a mistake in the sentence is answered right under the sentence
+    if (error instanceof SyntaxError || error instanceof RangeError) $("tip").textContent = status.textContent;
   }
 }
 
 for (const id of ["a-site", "a-date", "a-days", "a-height", "b-choice", "b-site"]) {
   $(id).addEventListener("change", showPlans);
 }
-for (const id of ["look-at", "seen-by"]) $(id).addEventListener("change", () => { fitSelects(); showMoment(true); });
-window.addEventListener("resize", fitSelects);
+for (const id of ["look-at", "seen-by"]) $(id).addEventListener("change", () => { fitFields(); showMoment(true); });
+window.addEventListener("resize", fitFields);
 
 let queued = false;
 function onMove() {
@@ -328,11 +347,52 @@ function onMove() {
   requestAnimationFrame(() => { queued = false; showMoment(false); });
 }
 window.addEventListener("scroll", onMove, { passive: true });
-window.addEventListener("resize", () => { drawPlan(true); onMove(); });
+// A new window width moves everything above the flight plan; keep the moment.
+// (A change of height alone is a phone hiding its address bar in mid-scroll.)
+let lastWidth = window.innerWidth;
+window.addEventListener("resize", () => {
+  const keep = state.met, widthChanged = window.innerWidth !== lastWidth;
+  lastWidth = window.innerWidth;
+  drawPlan(true);
+  drawStrip();
+  if (state.runs && widthChanged) scrollToMet(keep);
+  onMove();
+});
+
+// ---- who the arrow keys belong to ------------------------------------------
+// In a box of the sentence the keys edit the box. Escape, Enter in a typed
+// box, or a click on a view, the strip or the flight plan hands them to time.
+const timeline = $("plan-col");
+const isField = (node) => node instanceof Element && node.matches("input, select, textarea");
+function focusTime() {
+  if (document.activeElement !== timeline) timeline.focus({ preventScroll: true });
+}
+const KEYS_TIME = $("keys").textContent;
+const KEYS_FIELD = "Arrow keys now edit this box. Esc returns them to time.";
+function showKeys() {
+  const inField = isField(document.activeElement);
+  $("keys").textContent = inField ? KEYS_FIELD : KEYS_TIME;
+  document.documentElement.dataset.keys = inField ? "box" : "time";
+}
+document.addEventListener("focusin", showKeys);
+document.addEventListener("focusout", () => setTimeout(showKeys, 0));
+for (const id of ["scene-col", "plan-col"]) {
+  $(id).addEventListener("click", (event) => {
+    if (!event.target.closest("select, input, button, a")) focusTime();
+  });
+}
 
 // arrow keys: one hour, with Shift one day; Home and End: landing and end of stay
 window.addEventListener("keydown", (event) => {
-  if (!state.runs || event.target.matches("input, select, textarea")) return;
+  if (isField(event.target)) {
+    if (event.key === "Escape" || (event.key === "Enter" && event.target.matches("input"))) {
+      event.preventDefault();
+      event.target.blur();                       // a typed change is taken on the way out
+      focusTime();
+    }
+    return;
+  }
+  if (!state.runs) return;
   const step = event.shiftKey ? 24 : 1, now = metFromScroll();
   const to = { ArrowRight: now + step, ArrowLeft: now - step,
                Home: 0, End: state.runs[0].n }[event.key];
@@ -341,26 +401,64 @@ window.addEventListener("keydown", (event) => {
   scrollToMet(to);
 });
 
-// dragging the flight plan with a mouse moves it like a sheet of paper
+// in the date box, up and down step the part under the caret: year, month, day or hour
+$("a-date").addEventListener("keydown", (event) => {
+  const step = { ArrowUp: 1, ArrowDown: -1 }[event.key], field = event.target, ms = parseUtc(field.value);
+  if (!step || !Number.isFinite(ms)) return;
+  event.preventDefault();
+  const at = field.selectionStart, date = new Date(ms);
+  if (at <= 4) date.setUTCFullYear(date.getUTCFullYear() + step);
+  else if (at <= 7) date.setUTCMonth(date.getUTCMonth() + step);
+  else if (at <= 10) date.setUTCDate(date.getUTCDate() + step);
+  else date.setUTCHours(date.getUTCHours() + step);
+  field.value = formatUtc(date.getTime()).slice(0, 16);
+  field.setSelectionRange(at, at);
+  showPlans();
+});
+
+// dragging the flight plan with a mouse moves it like a sheet of paper;
+// a click or tap on an hour brings that hour to the cursor
 const col = $("plan-col");
-let dragY = null;
+let dragY = null, dragged = 0;
 col.addEventListener("pointerdown", (event) => {
+  dragged = 0;
   if (event.pointerType !== "mouse" || event.button !== 0) return;
   dragY = event.clientY;
   col.setPointerCapture(event.pointerId);
 });
 col.addEventListener("pointermove", (event) => {
   if (dragY === null) return;
+  dragged += Math.abs(dragY - event.clientY);
   window.scrollBy(0, dragY - event.clientY);
   dragY = event.clientY;
 });
 for (const type of ["pointerup", "pointercancel"]) col.addEventListener(type, () => { dragY = null; });
+col.addEventListener("click", (event) => {
+  if (!state.runs || dragged > 4) return;
+  const hours = Math.round((event.clientY - trackZero()) / PX_PER_HOUR);
+  if (hours >= 0 && hours <= state.runs[0].n) scrollToMet(hours);
+});
+
+// the strip under the views: a tap jumps to that moment, a drag runs the time
+const strip = $("overview");
+let scrubbing = false;
+function scrub(event) {
+  if (state.scale) scrollToMet(state.scale.hours(event.clientX - strip.getBoundingClientRect().left));
+}
+strip.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0) return;
+  scrubbing = true;
+  strip.setPointerCapture(event.pointerId);
+  scrub(event);
+});
+strip.addEventListener("pointermove", (event) => { if (scrubbing) scrub(event); });
+for (const type of ["pointerup", "pointercancel"]) strip.addEventListener(type, () => { scrubbing = false; });
 
 async function start() {
   try {
     const [buffer] = await Promise.all([load("data/sky.bin", "binary"), document.fonts.load("15px Jost")]);
     state.sky = parseSky(buffer);
-    fitSelects();
+    fitFields();
     await showPlans();
   } catch (error) {
     $("status").textContent = "Could not load sky data. " + error.message;

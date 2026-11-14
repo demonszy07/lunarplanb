@@ -79,8 +79,18 @@ more than seven terrain sites.
 - Fixes after stage 3 (14 Nov): narrow screens show one line over the sky, notes behind "i";
   on roomy desktops the flight plan is wider and the mission summary sits lower left; the
   near ground is smooth (hit point between march steps, finer normal steps, soft terminator).
-- Sizes now: first screen 282 kB on disk, 236 kB compressed; with the real sky 328 kB / 275 kB.
-- Not done: shadows cast by other hills; the date picker shows the browser's local format.
+- Six fixes before stage 4 (14 Nov, published): arrow keys belong to a focused box, Escape or
+  a click on the view hands them back to time (hint under the strip); the date is typed text,
+  24-hour "YYYY-MM-DD HH:MM" UTC; directions sit on a black band under the view; changeable
+  words have an underline, a small triangle and a hover highlight, with one tip under the
+  sentence; the mission summary sits under the verdict, before the flight plan; an overview
+  strip of the whole stay sits at the bottom of the fixed block (tap to jump, drag to run time),
+  and a tap on an hour of the flight plan jumps there.
+- One cursor: the scroll position of the flight plan is the only clock. Keys, strip, taps and
+  drags all scroll the page (scrollToMet in app.js); never keep a second time variable.
+  tests/check_controls.cjs checks this on a desktop and on a touch phone.
+- Sizes now: first screen 293 kB on disk, 239 kB compressed; with the real sky 338 kB / 279 kB.
+- Not done: shadows cast by other hills.
 
 ### Stage 4, approved plan (start in a new session; do not re-ask for approval of these points)
 1. Terrain data: one file per site, [id]_3d.bin, three nested height grids centred on the
