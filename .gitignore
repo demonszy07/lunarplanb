@@ -1,0 +1,6 @@
+# Downloaded source rasters (hundreds of MB) stay out of the repo
+data/raw/
+*.TIF
+__pycache__/
+*.pyc
+.venv/
