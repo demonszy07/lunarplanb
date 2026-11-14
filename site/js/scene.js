@@ -83,7 +83,7 @@ export function lighting(view) {
 // per 0.2 degrees of elevation) are blended between neighbours first and lit
 // afterwards, so the edge between light and shadow stays smooth.
 const FINER_AZ = 3, FINER_EL = 2;
-function shadeGround(ground, view) {
+export function shadeGround(ground, view) {
   const light = lighting(view);
   const lightAz = light.source === "earth" ? view.earthAz : view.sunAz;
   const lightEl = light.source === "earth" ? view.earthEl : view.sunEl;
@@ -282,7 +282,7 @@ export function drawScene(canvas, site, view, options = {}) {
   }
   const ctx = canvas.getContext("2d");
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  const centreAz = options.lookAt === "earth" ? view.earthAz : view.sunAz;
+  const centreAz = options.lookAz === undefined ? view.sunAz : options.lookAz;
   const g = geometry(width, height, centreAz, options.forceFull);
 
   ctx.fillStyle = "#000";
@@ -336,14 +336,29 @@ export function drawScene(canvas, site, view, options = {}) {
   return g;
 }
 
-// Where the other body is when the window does not show it.
-export function offFrameNote(g, view, lookAt) {
-  if (g.full) return "";
-  const other = lookAt === "earth" ? "The Sun" : "Earth";
-  const az = lookAt === "earth" ? view.sunAz : view.earthAz;
-  const offset = wrap180(az - g.centre);
-  if (Math.abs(offset) <= g.windowDeg / 2) return "";
-  const seen = lookAt === "earth" ? view.sunFraction > 0 : view.earthFraction > 0;
-  return `${other} is ${Math.abs(Math.round(offset))}° to the ${offset < 0 ? "left" : "right"}, ` +
-    (seen ? "above the terrain." : "behind the terrain.");
+// Only the direction labels, on a canvas that lies over the 3D picture.
+// `map` comes from View3D.draw: x(az) is the place of an azimuth, or null.
+export function drawOverlay(canvas, map) {
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  drawCompass(ctx, width, height, 45, map.x, false);
+}
+
+// Where the Sun and Earth are when the window does not show them.
+// `window` has the azimuth at its middle (centre) and its width (windowDeg).
+export function offFrameNote(window, view) {
+  if (window.full) return "";
+  const notes = [];
+  for (const [name, az, seen] of [["The Sun", view.sunAz, view.sunFraction > 0], ["Earth", view.earthAz, view.earthFraction > 0]]) {
+    const offset = wrap180(az - window.centre);
+    if (Math.abs(offset) <= window.windowDeg / 2) continue;
+    notes.push(`${name} is ${Math.abs(Math.round(offset))}° to the ${offset < 0 ? "left" : "right"}, ` +
+      (seen ? "above the terrain." : "behind the terrain."));
+  }
+  return notes.join(" ");
 }

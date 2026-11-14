@@ -34,7 +34,11 @@ const { serve } = require("./shoot.cjs");
   // The real sky (stars, Earth's picture) loads last, piece by piece. Everything
   // answered up to and including the lit ground is the first load.
   await page.waitForSelector("html[data-stage=sky]", { timeout: 20000 });
+  // The 3D view comes after that; it either stays or, on a slow device, is taken out again.
+  await page.waitForSelector("html[data-view3d]", { timeout: 60000 });
   await page.waitForTimeout(200);
+  const view3d = await page.evaluate(() => ({ ...document.documentElement.dataset,
+    canvasHidden: document.getElementById("scene-3d").hidden, modeHidden: document.getElementById("mode").hidden }));
   const cut = downloads.findIndex((d) => d.url.endsWith("site01_view.bin")) + 1;
   const firstLoad = downloads.slice(0, cut);
   const firstLoadBytes = firstLoad.reduce((sum, d) => sum + d.bytes, 0);
@@ -105,7 +109,7 @@ const { serve } = require("./shoot.cjs");
     topLineHeight, blockHeights, steps, at27, noteAt2m,
     loadingTextSeen: statusWhileLoading === "Loading sky data" && tableWhileLoading === 0,
     sentenceWhileLoading, firstLoad, firstLoadBytes, skyLoad, fullBytes,
-    starsWithEye, starsWithCamera, cameraNote,
+    starsWithEye, starsWithCamera, cameraNote, view3d,
     laterDownloads: downloads.slice(afterSky).map((d) => d.url),
   }, null, 1));
 })().catch((e) => { console.error(e); process.exit(1); });

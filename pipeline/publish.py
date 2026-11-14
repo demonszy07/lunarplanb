@@ -25,6 +25,8 @@ FIRST_LOAD = ["index.html", "style.css", "js/app.js", "js/sky.js", "js/visibilit
 
 
 SKY_LOAD = ["js/realsky.js", "data/stars.bin", "data/earth.bin", "data/earth.jpg"]
+# the 3D view: three.js with only the parts used, and the terrain of the plan A site
+THREE_LOAD = ["js/view3d.bundle.js", "data/sites/site01_3d.bin"]
 
 
 TEXT = (".html", ".css", ".js", ".json")       # what a web host compresses on the way out
@@ -43,13 +45,15 @@ def main(out: str = "dist") -> int:
     shutil.copytree(os.path.join(ROOT, "site"), out)
     os.makedirs(os.path.join(out, "data", "sites"), exist_ok=True)
     site_files = sorted(glob.glob(os.path.join(ROOT, "data", "sites", "*.json")) +
-                        glob.glob(os.path.join(ROOT, "data", "sites", "*_view.bin")))
+                        glob.glob(os.path.join(ROOT, "data", "sites", "*_view.bin")) +
+                        glob.glob(os.path.join(ROOT, "data", "sites", "*_3d.bin")))
     for path in site_files:
         shutil.copy(path, os.path.join(out, "data", "sites"))
 
     totals = {}
     for title, names in (("first screen (2D view and flight plan)", FIRST_LOAD),
-                         ("after it, in the background (real sky)", SKY_LOAD)):
+                         ("after it, in the background (real sky)", SKY_LOAD),
+                         ("last, in the background (3D view)", THREE_LOAD)):
         print(title + ":")
         raw_sum = wire_sum = 0
         for name in names:
@@ -59,8 +63,8 @@ def main(out: str = "dist") -> int:
             print(f"  {name:36} {raw:8d} bytes  {wire:8d} compressed")
         print(f"  {'total':36} {raw_sum:8d} bytes  {wire_sum:8d} compressed")
         totals[title] = (raw_sum, wire_sum)
-    first, later = totals.values()
-    print(f"everything: {first[0] + later[0]} bytes, {first[1] + later[1]} compressed")
+    first, later, three = totals.values()
+    print(f"everything: {first[0] + later[0] + three[0]} bytes, {first[1] + later[1] + three[1]} compressed")
     largest = max(os.path.getsize(p) for p in site_files)
     print(f"{len(site_files)} site files, largest {largest} bytes")
     # The one budget: the first screen stays near 300 kB compressed. No limit on the rest.

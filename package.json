@@ -1,0 +1,12 @@
+{
+  "name": "lunarplanb",
+  "private": true,
+  "description": "Build step for the 3D view only. The bundle it writes (site/js/view3d.bundle.js) is committed, so publishing needs no install.",
+  "scripts": {
+    "build3d": "esbuild web3d/view3d.js --bundle --format=esm --minify --target=es2020 --legal-comments=none --banner:js=\"/* Lunar Plan B 3D view. Contains three.js r187 (MIT licence, https://github.com/mrdoob/three.js), only the parts used. Source: web3d/view3d.js */\" --outfile=site/js/view3d.bundle.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.187.0"
+  }
+}

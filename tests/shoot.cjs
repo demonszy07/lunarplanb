@@ -36,9 +36,10 @@ if (require.main === module) (async () => {
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
-    await page.goto(base);
+    await page.goto(base + (process.env.SHOOT_QUERY || ""));        // e.g. SHOOT_QUERY='?3d=force'
     await page.waitForSelector("html[data-ready]", { timeout: 20000 });
     await page.waitForSelector("html[data-stage^=sky]", { timeout: 20000 }).catch(() => {});
+    await page.waitForSelector("html[data-view3d]", { timeout: 60000 }).catch(() => {});
     if (process.env.SHOOT_SET) {
       // e.g. SHOOT_SET='a-date=2027-04-02T00:00,a-height=5' changes the plan before the picture
       const before = await page.evaluate(() => document.documentElement.dataset.ready);
@@ -72,6 +73,8 @@ if (require.main === module) (async () => {
       verdict: document.getElementById("verdict").textContent,
       a: document.getElementById("count-a").textContent, b: document.getElementById("count-b").textContent,
       stretch: document.getElementById("stretch-a").textContent,
+      view3d: document.documentElement.dataset.view3d, frameMs: document.documentElement.dataset.frameMs,
+      view: document.documentElement.dataset.view, error: document.documentElement.dataset.view3dError,
     }));
     console.log(name, JSON.stringify(info), errors.length ? "ERRORS " + errors.join(" | ") : "no errors");
     await page.close();

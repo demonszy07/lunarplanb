@@ -4,7 +4,8 @@
 
 import { parseSky } from "./sky.js";
 import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc, parseUtc } from "./plan.js";
-import { drawScene, offFrameNote, parseView, lighting, earthPictureSize } from "./scene.js";
+import { drawScene, drawOverlay, offFrameNote, parseView, lighting, shadeGround, earthPictureSize } from "./scene.js";
+import { discFraction } from "./visibility.js";
 import { drawHead, drawTrack, drawOverview, stripWidth, PX_PER_HOUR, TRACK_TOP } from "./flightplan.js";
 
 const $ = (id) => document.getElementById(id);
@@ -114,11 +115,123 @@ async function realSky() {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(picture, 0, 0);
     state.texture = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    state.earthImage = canvas;
     showMoment(true);
     stage("sky");
   } catch (error) {
     stage("sky-failed");                    // the drawn Earth and an empty sky stay
   }
+  start3d();
+}
+
+// ---- the 3D view ------------------------------------------------------------
+// Loaded last. The page is complete without it: with no WebGL2, or when the
+// first pictures take longer than 40 ms each, it is taken out again and the
+// panorama stays. "?3d=off" and "?3d=force" in the address override this, for checks.
+const SLOW_MS = 40;
+const three = { view: null, lib: null, terrains: new Map(), terrain: null, terrainSite: "", siteRef: null,
+                map: null, freeAz: 0 };
+const flag = (name, value) => { document.documentElement.dataset[name] = value; };
+
+async function start3d() {
+  const wish = new URLSearchParams(location.search).get("3d");
+  if (wish === "off") return flag("view3d", "off");
+  let probe = null;
+  try { probe = document.createElement("canvas").getContext("webgl2"); } catch (error) { /* none */ }
+  if (!probe) return flag("view3d", "no-webgl2");
+  try {
+    if (!state.runs) return flag("view3d", "no-plan");
+    three.lib = await import("./view3d.bundle.js");
+    const view = new three.lib.View3D($("scene-3d"));
+    if (state.stars) view.setStars(state.stars);
+    if (state.earthImage) view.setEarthPicture(state.earthImage);
+    // Slow devices stay 2D: the median of the first five pictures decides.
+    // They are drawn while the canvas is still hidden, so nothing flickers.
+    const [a] = state.runs, siteId = a.plan.site, canvas = $("scene-a");
+    const terrain = await terrain3d(siteId);
+    view.setTerrain(terrain);
+    view.setSite(a.site, terrain.far[a.plan.height]);
+    const times = view.time(moment3d(a, state.met, terrain), canvas.clientWidth, canvas.clientHeight, pixelRatio3d())
+      .sort((x, y) => x - y);
+    const median = times[Math.floor(times.length / 2)];
+    flag("frameMs", median.toFixed(1));
+    if (median > SLOW_MS && wish !== "force") {
+      view.dispose();
+      return flag("view3d", "slow");
+    }
+    three.view = view;
+    three.terrain = terrain;
+    three.terrainSite = siteId;
+    three.siteRef = a.site;
+    $("mode").hidden = false;
+    fitFields();
+    flag("view3d", "on");
+    window.lunar3d = { measureSun: () => three.view.measureSun(moment3d(state.runs[0], state.met)), view };
+    showMoment(true);
+  } catch (error) {
+    if (three.view) three.view.dispose();
+    three.view = null;
+    flag("view3d", "failed");
+    flag("view3dError", String(error));
+    showMoment(true);
+  }
+}
+
+const pixelRatio3d = () => Math.min(window.devicePixelRatio || 1, 2);
+
+// The terrain file of a site, fetched once; the mesh is built when it is needed.
+function terrain3d(siteId) {
+  if (!three.terrains.has(siteId)) {
+    const pending = load("data/sites/" + siteId + "_3d.bin", "binary").then((buffer) => three.lib.parseTerrain(buffer));
+    pending.catch(() => three.terrains.delete(siteId));
+    three.terrains.set(siteId, pending);
+  }
+  return three.terrains.get(siteId).then((terrain) => {
+    if (three.view && state.runs && state.runs[0].plan.site === siteId && three.terrainSite !== siteId) {
+      three.view.setTerrain(terrain);
+      three.terrain = terrain;
+      three.terrainSite = siteId;
+      showMoment(true);
+    }
+    return terrain;
+  });
+}
+
+// Is the 3D picture what view A shows right now?
+function in3d(run) {
+  if (!three.view || $("view-mode").value !== "3d") return false;
+  if (three.terrainSite !== run.plan.site) { terrain3d(run.plan.site).catch(() => {}); return false; }
+  return true;
+}
+
+// Azimuth at the middle of view A.
+function lookAzimuth(view) {
+  const choice = $("look-at").value;
+  return choice === "earth" ? view.earthAz : choice === "free" ? three.freeAz : choice === "sun" ? view.sunAz : Number(choice);
+}
+
+// Everything the 3D view needs to know about one moment.
+function moment3d(run, met, terrain = three.terrain) {
+  const view = run.views[met], hours = run.start + met, site = run.site;
+  const light = lighting(view);
+  const picture = ground(run.plan);
+  // far mountains are not in the mesh: the share of the Sun's disc they leave
+  // in view dims all the near ground; near terrain is left to the mesh itself
+  const far = terrain ? terrain.far[run.plan.height] : null;
+  const strength = light.source === "sun" && far ? discFraction(far, view.sunAz, view.sunEl, view.sunDiameter) : light.strength;
+  const hideStars = $("seen-by").value === "camera" && view.sunFraction > 0;
+  return {
+    view, lookAz: lookAzimuth(view),
+    light: { source: light.source, strength,
+             az: light.source === "earth" ? view.earthAz : view.sunAz, el: light.source === "earth" ? view.earthEl : view.sunEl,
+             colour: light.source === "earth" ? [120 / 255, 140 / 255, 175 / 255] : [184 / 255, 180 / 255, 172 / 255],
+             level: light.source === "earth" ? 0.32 : 1 },
+    starMatrix: state.stars && !hideStars ? state.real.siteMatrix(hours, site.lat, site.lon) : null,
+    earth: state.earth ? { ...state.real.earthFacing(state.earth, hours),
+                           pole: state.real.earthPoleAngle(hours, site.lat, site.lon, view.earthAz, view.earthEl) } : null,
+    picture: picture ? shadeGround(picture, view) : null,
+    pictureElTop: picture ? picture.elTop : 0, pictureElSpan: picture ? picture.rows * picture.elStep : 1,
+  };
 }
 
 // What the real sky adds to one view at one moment.
@@ -174,15 +287,35 @@ function scrollToMet(hours) {
 function showMoment(force) {
   if (!state.runs) return;
   const met = metFromScroll();
-  const key = [met, window.innerWidth, window.innerHeight, $("look-at").value, $("seen-by").value].join();
+  const [a, b] = state.runs;
+  const solid = in3d(a);
+  const key = [met, window.innerWidth, window.innerHeight, $("look-at").value, three.freeAz, $("seen-by").value, solid].join();
   if (!force && key === state.drawn) return;
   state.drawn = key;
   state.met = met;
-  const [a, b] = state.runs;
-  const lookAt = $("look-at").value;
+  const lookAz = lookAzimuth(a.views[met]);
 
-  const ga = drawScene($("scene-a"), a.site, a.views[met],
-    { lookAt, ground: ground(a.plan), ...skyFor(0, a, met, $("scene-a")) });
+  // view A: the 3D picture with the direction labels over it, or the panorama
+  const canvasA = $("scene-a");
+  $("scene-3d").hidden = !solid;
+  let frame;                                    // { full, centre, windowDeg } of what view A shows
+  if (solid) {
+    if (three.siteRef !== a.site) { three.view.setSite(a.site, three.terrain.far[a.plan.height]); three.siteRef = a.site; }
+    three.map = three.view.draw(moment3d(a, met), canvasA.clientWidth, canvasA.clientHeight, pixelRatio3d());
+    drawOverlay(canvasA, three.map);
+    frame = { full: false, centre: lookAz, windowDeg: three.map.windowDeg };
+    $("stretch-a").textContent = `${three.map.windowDeg}° wide, no vertical stretch`;
+    $("draw-note").textContent = "Ground within 20 km is a 3D model with cast shadows; farther mountains are a painted strip. Sun and Earth have their true size.";
+  } else {
+    three.map = null;
+    frame = drawScene(canvasA, a.site, a.views[met],
+      { lookAz, ground: ground(a.plan), ...skyFor(0, a, met, canvasA) });
+    $("stretch-a").textContent = `vertical scale stretched ${frame.stretch.toFixed(0)}×`;
+    $("draw-note").textContent = "Sun and Earth are drawn round, so they are widened by the same stretch.";
+  }
+  three.frame = frame;
+  $("view-a").classList.toggle("turns", !frame.full);
+  flag("view", solid ? "3d" : "2d");
   const gb = drawScene($("scene-b"), b.site, b.views[met],
     { forceFull: true, compass: false, ground: ground(b.plan), ...skyFor(1, b, met, $("scene-b")) });
   document.documentElement.dataset.stars = !state.stars ? "none yet" : $("seen-by").value === "camera" && a.views[met].sunFraction > 0 ? "hidden" : "shown";
@@ -192,7 +325,6 @@ function showMoment(force) {
       ? "With the Sun in view, a camera set for sunlit ground records no stars, as in the Apollo photographs."
       : "The Sun is down, so a long exposure shows the stars.";
   const light = lighting(a.views[met]).source;
-  $("stretch-a").textContent = `vertical scale stretched ${ga.stretch.toFixed(0)}×`;
   const lightNote = light === "earth"
     ? "The Sun is down. The ground is shown by Earthlight, roughly ten thousand times fainter than sunlight, with the exposure raised."
     : light === "none" ? "No Sun and no Earth: the ground is dark." : "";
@@ -201,8 +333,8 @@ function showMoment(force) {
   $("light-short").textContent = light === "earth" ? "A: Earthlight only, exposure raised"
     : light === "none" ? "A: no Sun, no Earth, ground dark" : "";
   $("stretch-b").textContent = `stretched ${gb.stretch.toFixed(0)}×`;
-  $("look").hidden = ga.full;
-  $("off-frame").textContent = offFrameNote(ga, a.views[met], lookAt);
+  $("look").hidden = frame.full;
+  $("off-frame").textContent = offFrameNote(frame, a.views[met]);
 
   const label = formatMet(met);
   $("met").textContent = label;
@@ -337,7 +469,34 @@ async function showPlans() {
 for (const id of ["a-site", "a-date", "a-days", "a-height", "b-choice", "b-site"]) {
   $(id).addEventListener("change", showPlans);
 }
-for (const id of ["look-at", "seen-by"]) $(id).addEventListener("change", () => { fitFields(); showMoment(true); });
+for (const id of ["look-at", "seen-by", "view-mode"]) $(id).addEventListener("change", () => { fitFields(); showMoment(true); });
+
+// Dragging view A sideways turns it, when it shows a window and not the whole circle.
+const turning = { x: null, moved: 0 };
+$("scene-a").addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || !three.frame || three.frame.full) return;
+  turning.x = event.clientX;
+  turning.moved = 0;
+  $("scene-a").setPointerCapture(event.pointerId);
+});
+$("scene-a").addEventListener("pointermove", (event) => {
+  if (turning.x === null || !state.runs) return;
+  const dx = event.clientX - turning.x, width = $("scene-a").clientWidth;
+  turning.moved += Math.abs(dx);
+  if (turning.moved < 4) return;                       // a click, not a drag
+  const pick = $("look-at");
+  if (pick.value !== "free") {
+    three.freeAz = lookAzimuth(state.runs[0].views[state.met]);
+    pick.querySelector("[value=free]").hidden = false;
+    pick.value = "free";
+    fitFields();
+  }
+  // the scene follows the pointer: degrees per pixel at the middle of the picture
+  three.freeAz = (three.freeAz - dx * three.frame.windowDeg / width + 360) % 360;
+  turning.x = event.clientX;
+  onMove();
+});
+for (const type of ["pointerup", "pointercancel"]) $("scene-a").addEventListener(type, () => { turning.x = null; });
 window.addEventListener("resize", fitFields);
 
 let queued = false;

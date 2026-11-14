@@ -20,6 +20,11 @@ svg text { font-family: Jost, system-ui, sans-serif; font-variant-numeric: tabul
 .view { position: relative; margin: 0; }
 .view canvas { display: block; width: 100%; height: 100%; }
 .view-a { height: 50vh; flex: none; }
+/* the 3D picture lies under the 2D canvas, which then only carries the direction labels */
+#scene-3d { position: absolute; left: 0; top: 0; }
+#scene-3d[hidden] { display: none; }
+#scene-a { position: relative; touch-action: pan-y; }
+.view-a.turns #scene-a { cursor: ew-resize; }
 .view figcaption { position: absolute; left: 20px; right: 20px; bottom: 30px; }
 
 /* notes over the sky: name and stretch on the first line, the rest beside or behind "i" */
@@ -30,9 +35,8 @@ svg text { font-family: Jost, system-ui, sans-serif; font-variant-numeric: tabul
 .stretch { grid-column: 2; grid-row: 1; text-align: right; }
 .info { display: none; }
 .notes { display: contents; }
-.seen { grid-column: 1; grid-row: 2; max-width: 30em; }
-.look { grid-column: 1; grid-row: 3; max-width: 30em; }
-.more { grid-column: 2; grid-row: 2 / span 2; text-align: right; }
+.mode, .seen, .look { grid-column: 1; max-width: 30em; }
+.more { grid-column: 2; grid-row: 2 / span 3; text-align: right; }
 .light-short { display: none; }
 .sentence { font-size: 18px; line-height: 1.45; max-width: 34em; }
 .sentence.small { font-size: 15px; }
@@ -115,7 +119,7 @@ a { color: inherit; }
   .notes { display: none; flex-basis: 100%; margin: 6px -16px 0; padding: 8px 16px 10px; background: #000;
     border-bottom: 1px solid var(--line); }
   .top.open .notes { display: block; }
-  .seen, .look, .more { max-width: none; text-align: left; margin-bottom: 6px; line-height: 1.45; }
+  .mode, .seen, .look, .more { max-width: none; text-align: left; margin-bottom: 6px; line-height: 1.45; }
   .sentence { font-size: 15px; line-height: 1.4; }
   .sentence.small { font-size: 14px; }
   .under { display: flex; flex-direction: column; gap: 6px; padding: 0 0 8px; }

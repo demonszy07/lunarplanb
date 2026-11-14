@@ -84,7 +84,15 @@ def test_page_numbers_match_python(capsys):
         first_wire += wire
     assert first_wire < 320000
     # the real sky comes after the first view, in this order
-    assert page["skyLoad"] == ["js/realsky.js", "data/stars.bin", "data/earth.bin", "data/earth.jpg"]
+    assert page["skyLoad"] == ["js/realsky.js", "data/stars.bin", "data/earth.bin", "data/earth.jpg",
+                               "js/view3d.bundle.js", "data/sites/site01_3d.bin"]
+    # the 3D view: kept if the first pictures take 40 ms or less each, otherwise taken out again
+    three = page["view3d"]
+    assert three["view3d"] in ("on", "slow")
+    if three["view3d"] == "slow":
+        assert float(three["frameMs"]) > 40 and three["view"] == "2d" and three["canvasHidden"] and three["modeHidden"]
+    else:
+        assert float(three["frameMs"]) <= 40 and three["view"] == "3d" and not three["canvasHidden"]
     assert page["starsWithEye"] == "shown"
     assert page["starsWithCamera"] == "hidden"            # the Sun is in view at landing
     assert "Apollo" in page["cameraNote"]
@@ -92,7 +100,8 @@ def test_page_numbers_match_python(capsys):
         print("\n" + "\n".join(lines))
         print("verdict:", page["verdict"])
         print(f"first screen: {first_raw} bytes in {len(page['firstLoad'])} files, {first_wire} compressed; "
-              f"with the real sky: {page['fullBytes']} bytes")
+              f"everything downloaded: {page['fullBytes']} bytes")
+        print(f"3D view in this browser: {three['view3d']}, median of the first pictures {three['frameMs']} ms")
 
 
 @pytest.mark.skipif(not browser_available(), reason="node with playwright not installed")
