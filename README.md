@@ -4,8 +4,6 @@ One screen that compares two landing plans for the lunar south pole: where the S
 
 NASA Space Apps 2026, challenge "Lunar Landing Site Navigator".
 
-Live page: https://demonszy07.github.io/lunarplanb/
-
 ## Run
 
 ```
@@ -22,7 +20,7 @@ python pipeline/publish.py        # gathers site/ and data/sites/ into dist/ (wh
 python -m pytest tests
 ```
 
-To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. Every push to `main` publishes `dist/` to GitHub Pages (`.github/workflows/pages.yml`).
+To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. The page is published with Vercel: on every push to `main` it runs `python3 pipeline/publish.py dist` and serves `dist/` (settings in `vercel.json`).
 
 The two terrain files listed under Sources go in `data/raw/` (not stored in this repository).
 The JavaScript tests need Node.js; the page test also needs Playwright.
