@@ -10,6 +10,7 @@ const RAD = Math.PI / 180;
 // Read data/sky.bin (an ArrayBuffer).
 // Layout: "LSKY", uint32 header length, JSON header, then int16 values,
 // one block per channel. value = offset + rate * hours + scale * int16.
+// A channel with every = n holds every n-th row only.
 export function parseSky(buffer) {
   const view = new DataView(buffer);
   const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
@@ -25,13 +26,24 @@ export function parseSky(buffer) {
     channels: {},
   };
   let pos = 8 + headerLength;
+  const count = header.count;
   for (const ch of header.channels) {
-    const values = new Float64Array(header.count);
-    for (let i = 0; i < header.count; i++) {
-      values[i] = ch.offset + ch.rate * (i * header.step_hours) + ch.scale * view.getInt16(pos + 2 * i, true);
+    // a channel may hold only every n-th row; the rows between are straight lines
+    const every = ch.every || 1, stored = (count - 1) / every + 1;
+    const own = new Float64Array(stored);
+    for (let i = 0; i < stored; i++) {
+      own[i] = ch.offset + ch.rate * (i * every * header.step_hours) + ch.scale * view.getInt16(pos + 2 * i, true);
+    }
+    let values = own;
+    if (every > 1) {
+      values = new Float64Array(count);
+      for (let row = 0; row < count; row++) {
+        const i = Math.min(Math.floor(row / every), stored - 2);
+        values[row] = own[i] + (own[i + 1] - own[i]) * ((row - i * every) / every);
+      }
     }
     table.channels[ch.name] = values;
-    pos += 2 * header.count;
+    pos += 2 * stored;
   }
   return table;
 }

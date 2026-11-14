@@ -13,9 +13,13 @@
   <div class="scene-col" id="scene-col">
     <figure class="view view-a">
       <canvas id="scene-a" aria-label="View from the plan A site: skyline, Sun and Earth at the moment under the cursor"></canvas>
-      <p class="brand">Lunar Plan B</p>
-      <p class="stretch" id="stretch-a"></p>
-      <p class="look" id="look" hidden>Looking toward <select id="look-at" aria-label="Direction of view"><option value="sun">the Sun</option><option value="earth">Earth</option></select>. <span id="off-frame"></span></p>
+      <div class="top">
+        <div>
+          <p class="brand">Lunar Plan B</p>
+          <p class="look" id="look" hidden>Looking toward <select id="look-at" aria-label="Direction of view"><option value="sun">the Sun</option><option value="earth">Earth</option></select>. <span id="off-frame"></span></p>
+        </div>
+        <p class="stretch"><span id="stretch-a"></span><span class="light" id="light-a"></span></p>
+      </div>
       <figcaption>
         <p class="sentence">Land at <select id="a-site" aria-label="Site"></select>
           on <input id="a-date" type="datetime-local" value="2027-03-01T00:00" min="2026-01-01T00:00" max="2030-09-30T00:00" step="3600" aria-label="Landing date and time, UTC"> UTC,

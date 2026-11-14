@@ -97,6 +97,10 @@ def earth_phase(sun_az, sun_el, earth_az, earth_el):
 # Small table for the browser
 # --------------------------------------------------------------------------
 
+# The Sun's distance changes so slowly that one value a day is enough.
+SPARSE = {"sun_km": 8}
+
+
 def reduce(table: dict, step_hours: int = 3) -> dict:
     """Keep every step_hours-th row and pack each channel into 16-bit integers.
 
@@ -104,19 +108,26 @@ def reduce(table: dict, step_hours: int = 3) -> dict:
 
     rate is a straight-line trend (degrees per hour) taken out of the unwrapped
     longitudes first, so the leftover fits 16 bits; it is 0 for other channels.
+    A channel listed in SPARSE keeps only every n-th of those rows ("every" in
+    the header); readers fill the rows between by straight lines.
     """
     hours = table["hours"][::step_hours]
     if hours[-1] != table["hours"][-1]:
         raise ValueError("table length does not divide by the step")
     channels = []
     for name in CHANNELS:
-        v = table[name][::step_hours]
-        rate = float(np.polyfit(hours, v, 1)[0]) if name.endswith("_lon") else 0.0
-        rest = v - rate * hours
+        every = SPARSE.get(name, 1)
+        if (len(hours) - 1) % every:
+            raise ValueError("row count does not divide by the sparse step")
+        h = hours[::every]
+        v = table[name][::step_hours][::every]
+        rate = float(np.polyfit(h, v, 1)[0]) if name.endswith("_lon") else 0.0
+        rest = v - rate * h
         offset = float((rest.max() + rest.min()) / 2.0)
         scale = float((rest.max() - rest.min()) / 2.0 / 32767.0)
         ints = np.round((rest - offset) / scale).astype(np.int16)
-        channels.append({"name": name, "offset": offset, "rate": rate, "scale": scale, "ints": ints})
+        channels.append({"name": name, "offset": offset, "rate": rate, "scale": scale,
+                         "every": every, "ints": ints})
     return {"step_hours": step_hours, "count": len(hours), "channels": channels}
 
 
@@ -125,20 +136,22 @@ def write_bin(reduced: dict, path: str) -> None:
       4 bytes  "LSKY"
       uint32   length of the JSON header in bytes
       JSON     header, padded with spaces so the data starts on an even byte
-      int16[]  count values per channel, channels one after another
+      int16[]  the values of each channel, channels one after another;
+               a channel has (count - 1) / every + 1 values
     """
     header = {
         "epoch": ephemeris.EPOCH.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "step_hours": reduced["step_hours"],
         "count": reduced["count"],
         "frame": "MOON_ME, east-positive longitude",
-        "formula": "value = offset + rate * hours_since_epoch + scale * int16",
+        "formula": "value = offset + rate * hours_since_epoch + scale * int16; "
+                   "a channel with every = n holds every n-th row, straight lines between",
         "units": {"lon": "deg (unwrapped)", "lat": "deg", "km": "centre to centre"},
         "moon_radius_km": MOON_RADIUS_KM,
         "sun_radius_km": SUN_RADIUS_KM,
         "earth_radius_km": EARTH_RADIUS_KM,
         "source": "NASA/JPL Horizons, COMMAND=301 CENTER=500@399 QUANTITIES=14,15,19,20",
-        "channels": [{k: ch[k] for k in ("name", "offset", "rate", "scale")}
+        "channels": [{k: ch[k] for k in ("name", "offset", "rate", "scale", "every")}
                      for ch in reduced["channels"]],
     }
     text = json.dumps(header, separators=(",", ":")).encode("utf-8")
@@ -162,9 +175,18 @@ def read_bin(path: str) -> dict:
     table = {"hours": hours, "header": header}
     pos = 8 + n
     for ch in header["channels"]:
-        ints = np.frombuffer(raw, dtype="<i2", count=count, offset=pos).astype(float)
-        table[ch["name"]] = ch["offset"] + ch["rate"] * hours + ch["scale"] * ints
-        pos += 2 * count
+        every = ch.get("every", 1)
+        stored = (count - 1) // every + 1
+        ints = np.frombuffer(raw, dtype="<i2", count=stored, offset=pos).astype(float)
+        own_hours = hours[::every]
+        values = ch["offset"] + ch["rate"] * own_hours + ch["scale"] * ints
+        if every > 1:
+            # the same straight-line fill as site/js/sky.js, written out so both agree
+            row = np.arange(count)
+            i = np.minimum(row // every, stored - 2)
+            values = values[i] + (values[i + 1] - values[i]) * ((row - i * every) / every)
+        table[ch["name"]] = values
+        pos += 2 * stored
     return table
 
 

@@ -20,7 +20,7 @@ import os
 
 import numpy as np
 
-from horizon import Dem, horizon
+from horizon import Dem, horizon, view, write_view
 
 PGDA = "https://pgda.gsfc.nasa.gov/products/78"
 PGDA_DATA = "https://pgda.gsfc.nasa.gov/data/LOLA_5mpp"
@@ -85,46 +85,81 @@ def site_point(site: dict, dem: Dem):
     return round(float(lat), 4), round(float(lon), 4)
 
 
+# 5 m/pixel tile of each site (PGDA product 78), used for the first 5 km.
+# A site without a tile would stay on the 80 m map; all seven have one.
+TILES = {"site01": "Site01", "site04": "Site04", "site07": "Site07", "site11": "Site11",
+         "malapert": "Site23", "mouton": "Site20", "haworth": "Haworth"}
+TILE_DIR = "data/raw/pgda78"
+DETAIL_LIMIT_KM = 5.0
+
+
+def tile_name(site_id: str):
+    name = TILES.get(site_id)
+    return None if name is None else f"{name}_final_adj_5mpp_surf.tif"
+
+
 def main(out_dir: str = "data/sites"):
     near = Dem.from_geotiff("data/raw/LDEM_80S_80MPP_ADJ.TIF")
     far = Dem.from_geotiff("data/raw/LDEM_60S_240MPP_ADJ.TIF")
     os.makedirs(out_dir, exist_ok=True)
     index = []
-    for site, (suffix, height) in ((s, hh) for s in SITES for hh in HEIGHTS.items()):
+    for site in SITES:
         lat, lon = site_point(site, near)
-        h = horizon(lat, lon, height, near, far)
-        out = {
-            "id": site["id"], "name": site["name"],
-            "lat": lat, "lon": lon,
-            "observer_height_m": height,
-            "site_height_m": round(h["site_height_m"], 2),
-            "frame": "MOON_ME, east-positive longitude, sphere 1737.4 km, no refraction",
-            "azimuth": "clockwise from north; index i is i * 0.5 degrees",
-            "source": {
-                "name": "NASA GSFC Planetary Geodynamics Data Archive, High-Resolution LOLA "
-                        "Topography for Lunar South Pole Sites",
-                "url": PGDA, "region": site["pgda_name"], "file": site["file"],
-                "citation": CITATION, "point_choice": site["rule"],
-            },
-            "terrain": {"near_dem": "LDEM_80S_80MPP_ADJ.TIF", "near_limit_km": 100.0,
-                        "far_dem": "LDEM_60S_240MPP_ADJ.TIF", "far_limit_km": 300.0,
-                        "samples": h["samples"], "skipped_no_data": h["skipped"],
-                        "url": "https://pgda.gsfc.nasa.gov/products/90"},
-            "near_limit_km": 100.0, "far_limit_km": 300.0,
-            "elevation_deg": [round(float(v), 4) for v in h["elevation_deg"]],
-            "distance_km": [round(float(v), 3) for v in h["distance_km"]],
-        }
-        path = os.path.join(out_dir, site["id"] + suffix + ".json")
-        with open(path, "w") as f:
-            json.dump(out, f, separators=(",", ":"))
-            f.write("\n")
-        el = h["elevation_deg"]
-        if suffix == "":
-            index.append({"id": site["id"], "name": site["name"], "lat": lat, "lon": lon,
-                          "site_height_m": out["site_height_m"]})
-        print(f"{site['id'] + suffix:12} lat {lat:9.4f} lon {lon:9.4f} height {h['site_height_m']:8.1f} m  "
-              f"horizon {el.min():6.2f}..{el.max():6.2f} deg  no-data {h['skipped']:6d}  "
-              f"{os.path.getsize(path)} bytes")
+        tile = tile_name(site["id"])
+        tile_path = None if tile is None else os.path.join(TILE_DIR, tile)
+        detail = Dem.from_geotiff(tile_path) if tile_path and os.path.exists(tile_path) else None
+        if tile is not None and detail is None:
+            raise FileNotFoundError(f"{tile_path} is missing; download it from {PGDA}")
+        for suffix, height in HEIGHTS.items():
+            h = horizon(lat, lon, height, near, far, detail=detail, detail_limit_km=DETAIL_LIMIT_KM)
+            borrowed = h["detail_borrowed"] / h["detail_samples"] if h["detail_samples"] else None
+            terrain = {
+                "detail_dem": tile, "detail_limit_km": DETAIL_LIMIT_KM if tile else None,
+                "detail_url": PGDA if tile else None,
+                "detail_share_read_from_near_dem": None if borrowed is None else round(borrowed, 4),
+                "near_dem": "LDEM_80S_80MPP_ADJ.TIF", "near_limit_km": 100.0,
+                "far_dem": "LDEM_60S_240MPP_ADJ.TIF", "far_limit_km": 300.0,
+                "samples": h["samples"], "skipped_no_data": h["skipped"],
+                "url": "https://pgda.gsfc.nasa.gov/products/90",
+            }
+            if tile is None:
+                terrain["note"] = "No 5 m tile for this site; the 80 m map is used from the first metre."
+            out = {
+                "id": site["id"], "name": site["name"],
+                "lat": lat, "lon": lon,
+                "observer_height_m": height,
+                "site_height_m": round(h["site_height_m"], 2),
+                "frame": "MOON_ME, east-positive longitude, sphere 1737.4 km, no refraction",
+                "azimuth": "clockwise from north; index i is i * 0.5 degrees",
+                "source": {
+                    "name": "NASA GSFC Planetary Geodynamics Data Archive, High-Resolution LOLA "
+                            "Topography for Lunar South Pole Sites",
+                    "url": PGDA, "region": site["pgda_name"], "file": site["file"],
+                    "citation": CITATION, "point_choice": site["rule"],
+                },
+                "terrain": terrain,
+                "near_limit_km": 100.0, "far_limit_km": 300.0,
+                "elevation_deg": [round(float(v), 4) for v in h["elevation_deg"]],
+                "distance_km": [round(float(v), 3) for v in h["distance_km"]],
+            }
+            path = os.path.join(out_dir, site["id"] + suffix + ".json")
+            with open(path, "w") as f:
+                json.dump(out, f, separators=(",", ":"))
+                f.write("\n")
+
+            v = view(lat, lon, height, near, far, detail=detail, detail_limit_km=DETAIL_LIMIT_KM)
+            view_path = os.path.join(out_dir, site["id"] + suffix + "_view.bin")
+            write_view(view_path, v["normal"], {"site": site["id"], "observer_height_m": height})
+
+            el = h["elevation_deg"]
+            if suffix == "":
+                index.append({"id": site["id"], "name": site["name"], "lat": lat, "lon": lon,
+                              "site_height_m": out["site_height_m"]})
+            close = int(np.sum(h["distance_km"] < DETAIL_LIMIT_KM))
+            print(f"{site['id'] + suffix:12} lat {lat:9.4f} lon {lon:9.4f} ground {h['site_height_m']:8.1f} m  "
+                  f"horizon {el.min():6.2f}..{el.max():6.2f} deg  set within 5 km: {close:3d}/720  "
+                  f"5 m tile {tile or 'none':32} borrowed from 80 m {0 if borrowed is None else 100 * borrowed:5.1f} %  "
+                  f"no-data {h['skipped']}  json {os.path.getsize(path)}  view {os.path.getsize(view_path)} bytes")
     with open(os.path.join(out_dir, "index.json"), "w") as f:
         json.dump(index, f, indent=1)
         f.write("\n")

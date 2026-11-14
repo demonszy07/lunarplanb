@@ -13,7 +13,11 @@ export const EL_TOP = 12, EL_BOTTOM = -8;       // degrees shown, top and bottom
 const MAX_STRETCH_FULL = 10;                    // show all 360 degrees if the stretch stays under this
 const STRETCH_WINDOW = 8;                       // otherwise show a window at this stretch
 
+const RAD = Math.PI / 180;
 const SUN = "#FFF8E7";
+const REGOLITH = [184, 180, 172];               // sunlit regolith at its brightest on screen
+const EARTHLIT = [120, 140, 175];               // regolith under Earthlight, exposure raised
+const EARTHLIT_LEVEL = 0.32;                    // how bright full Earthlight is drawn (not a physical ratio)
 const EARTH_LIT = "#CFE2FF";
 const EARTH_DARK = "#0B1830";
 const GROUND = "#121212";
@@ -30,6 +34,118 @@ const STARS = (() => {
     az: next() * 360, el: -2 + next() * 14, alpha: 0.25 + next() * 0.2,
   }));
 })();
+
+// Read a [site]_view.bin file: for every degree of azimuth and every 0.2
+// degrees of elevation below the skyline, which way the ground faces.
+export function parseView(buffer) {
+  const bytes = new DataView(buffer);
+  const magic = String.fromCharCode(bytes.getUint8(0), bytes.getUint8(1), bytes.getUint8(2), bytes.getUint8(3));
+  if (magic !== "LVEW") throw new Error("not a view file");
+  const length = bytes.getUint32(4, true);
+  const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 8, length)));
+  return {
+    columns: header.columns, rows: header.rows,
+    elTop: header.elevation_top_deg, elStep: header.elevation_step_deg,
+    normals: new Int8Array(buffer, 8 + length, header.columns * header.rows * 2),
+    canvas: null, key: "",
+  };
+}
+
+// Brightness of a patch of ground by the Lommel-Seeliger law, the usual
+// first model for the dark, dusty lunar surface:
+//   I = mu0 / (mu0 + mu)
+// mu0 = cosine of the angle between the ground normal and the light,
+// mu  = cosine of the angle between the ground normal and the line to the eye.
+// The normal is given by its east and north parts (unit vector, up is the rest);
+// the patch is seen in direction (az, el); the light is at (lightAz, lightEl).
+export function lommelSeeliger(nEast, nNorth, az, el, lightAz, lightEl) {
+  const nUp = Math.sqrt(Math.max(0, 1 - nEast * nEast - nNorth * nNorth));
+  const ce = Math.cos(lightEl * RAD);
+  const mu0 = nEast * ce * Math.sin(lightAz * RAD) + nNorth * ce * Math.cos(lightAz * RAD) + nUp * Math.sin(lightEl * RAD);
+  if (mu0 <= 0) return 0;
+  const cv = Math.cos(el * RAD);
+  const mu = Math.max(0.01, -(nEast * cv * Math.sin(az * RAD) + nNorth * cv * Math.cos(az * RAD) + nUp * Math.sin(el * RAD)));
+  return mu0 / (mu0 + mu);
+}
+
+// What lights the ground at this moment. The Sun counts by the share of its
+// disc seen from the site. With no Sun at all, Earthlight takes over, drawn
+// with the exposure raised (it is roughly ten thousand times fainter).
+export function lighting(view) {
+  if (view.sunFraction > 0) return { source: "sun", strength: view.sunFraction };
+  const phase = earthPhase(view.sunAz, view.sunEl, view.earthAz, view.earthEl);
+  if (view.earthFraction > 0) return { source: "earth", strength: view.earthFraction * phase.lit };
+  return { source: "none", strength: 0 };
+}
+
+// Paint the picture of the ground. The stored normals (one per degree and
+// per 0.2 degrees of elevation) are blended between neighbours first and lit
+// afterwards, so the edge between light and shadow stays smooth.
+const FINER_AZ = 3, FINER_EL = 2;
+function shadeGround(ground, view) {
+  const light = lighting(view);
+  const lightAz = light.source === "earth" ? view.earthAz : view.sunAz;
+  const lightEl = light.source === "earth" ? view.earthEl : view.sunEl;
+  const key = [light.source, light.strength.toFixed(3), lightAz.toFixed(2), lightEl.toFixed(2)].join();
+  if (ground.canvas && ground.key === key) return ground.canvas;
+  const columns = ground.columns, rows = ground.rows;
+  const wide = columns * FINER_AZ, high = rows * FINER_EL;
+  if (!ground.canvas) {
+    ground.canvas = document.createElement("canvas");
+    ground.canvas.width = wide;
+    ground.canvas.height = high;
+    ground.image = ground.canvas.getContext("2d").createImageData(wide, high);
+    // direction of every picture column and row, worked out once
+    ground.sinAz = new Float64Array(wide); ground.cosAz = new Float64Array(wide);
+    for (let x = 0; x < wide; x++) {
+      const az = ((x + 0.5) / FINER_AZ - 0.5) * RAD;
+      ground.sinAz[x] = Math.sin(az); ground.cosAz[x] = Math.cos(az);
+    }
+    ground.sinEl = new Float64Array(high); ground.cosEl = new Float64Array(high);
+    for (let y = 0; y < high; y++) {
+      const el = (ground.elTop - ((y + 0.5) / FINER_EL) * ground.elStep) * RAD;
+      ground.sinEl[y] = Math.sin(el); ground.cosEl[y] = Math.cos(el);
+    }
+  }
+  ground.key = key;
+  const data = ground.image.data, normals = ground.normals;
+  const colour = light.source === "earth" ? EARTHLIT : REGOLITH;
+  const level = light.source === "earth" ? EARTHLIT_LEVEL : 1;
+  const lx = Math.cos(lightEl * RAD) * Math.sin(lightAz * RAD);
+  const ly = Math.cos(lightEl * RAD) * Math.cos(lightAz * RAD);
+  const lz = Math.sin(lightEl * RAD);
+  let p = 0;
+  for (let y = 0; y < high; y++) {
+    const fr = Math.min(rows - 1, Math.max(0, (y + 0.5) / FINER_EL - 0.5));
+    const r0 = Math.min(rows - 2, Math.floor(fr)), tr = fr - r0;
+    const se = ground.sinEl[y], ce = ground.cosEl[y];
+    for (let x = 0; x < wide; x++, p += 4) {
+      let value = 0;
+      if (light.strength > 0) {
+        const fc = (x + 0.5) / FINER_AZ - 0.5 + columns;
+        const c0 = Math.floor(fc), tc = fc - c0;
+        const a = 2 * (r0 * columns + c0 % columns), b = 2 * (r0 * columns + (c0 + 1) % columns);
+        const c = a + 2 * columns, d = b + 2 * columns;
+        const w00 = (1 - tr) * (1 - tc), w01 = (1 - tr) * tc, w10 = tr * (1 - tc), w11 = tr * tc;
+        const ne = (w00 * normals[a] + w01 * normals[b] + w10 * normals[c] + w11 * normals[d]) / 127;
+        const nn = (w00 * normals[a + 1] + w01 * normals[b + 1] + w10 * normals[c + 1] + w11 * normals[d + 1]) / 127;
+        const nu = Math.sqrt(Math.max(0, 1 - ne * ne - nn * nn));
+        const mu0 = ne * lx + nn * ly + nu * lz;
+        if (mu0 > 0) {
+          // the same Lommel-Seeliger law as lommelSeeliger() above
+          const mu = Math.max(0.01, -(ne * ce * ground.sinAz[x] + nn * ce * ground.cosAz[x] + nu * se));
+          value = level * Math.pow(light.strength * mu0 / (mu0 + mu), 1 / 2.2);   // display gamma, like a camera
+        }
+      }
+      data[p] = colour[0] * value;
+      data[p + 1] = colour[1] * value;
+      data[p + 2] = colour[2] * value;
+      data[p + 3] = 255;
+    }
+  }
+  ground.canvas.getContext("2d").putImageData(ground.image, 0, 0);
+  return ground.canvas;
+}
 
 // How the panorama maps to the canvas for a given size.
 export function geometry(width, height, centreAz, forceFull) {
@@ -128,8 +244,26 @@ export function drawScene(canvas, site, view, options = {}) {
   ctx.lineTo(width + 2, height + 2);
   ctx.lineTo(-2, height + 2);
   ctx.closePath();
-  ctx.fillStyle = GROUND;
-  ctx.fill();
+  if (options.ground) {
+    // lit and shadowed slopes, stretched from the small picture and cut along the skyline
+    const picture = shadeGround(options.ground, view);
+    const top = g.y(options.ground.elTop), span = options.ground.rows * options.ground.elStep * g.v;
+    const left = width / 2 + (-0.5 - g.centre) * g.h, wide = 360 * g.h;
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, width, height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    for (const turn of [-1, 0, 1]) {
+      const x = left + turn * wide;
+      if (x < width && x + wide > 0) ctx.drawImage(picture, x, top, wide, span);
+    }
+    ctx.restore();
+  } else {
+    ctx.fillStyle = GROUND;
+    ctx.fill();
+  }
   terrainPath(ctx, g, site.elevation_deg);
   ctx.strokeStyle = SKYLINE;
   ctx.lineWidth = 1;

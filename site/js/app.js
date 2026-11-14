@@ -4,13 +4,13 @@
 
 import { parseSky } from "./sky.js";
 import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc } from "./plan.js";
-import { drawScene, offFrameNote } from "./scene.js";
+import { drawScene, offFrameNote, parseView, lighting } from "./scene.js";
 import { drawHead, drawTrack, PX_PER_HOUR } from "./flightplan.js";
 
 const $ = (id) => document.getElementById(id);
 const narrow = window.matchMedia("(max-width: 899px)");
 
-const state = { sky: null, sites: new Map(), runs: null, met: 0, drawn: "" };
+const state = { sky: null, sites: new Map(), grounds: new Map(), runs: null, met: 0, drawn: "" };
 
 // ---- the two sentences -----------------------------------------------------
 
@@ -65,6 +65,19 @@ function site(plan) {
   return state.sites.get(name);
 }
 
+// The lit and shadowed ground comes in after the view is already on screen.
+function ground(plan) {
+  const name = siteFile(plan).replace(".json", "_view.bin");
+  if (!state.grounds.has(name)) {
+    state.grounds.set(name, null);
+    load("data/sites/" + name, "binary").then((buffer) => {
+      state.grounds.set(name, parseView(buffer));
+      showMoment(true);
+    }).catch(() => state.grounds.delete(name));
+  }
+  return state.grounds.get(name);
+}
+
 // ---- time: the scroll position is the clock --------------------------------
 
 function cursorY() {
@@ -94,9 +107,13 @@ function showMoment(force) {
   const [a, b] = state.runs;
   const lookAt = $("look-at").value;
 
-  const ga = drawScene($("scene-a"), a.site, a.views[met], { lookAt });
-  const gb = drawScene($("scene-b"), b.site, b.views[met], { forceFull: true, compass: false });
+  const ga = drawScene($("scene-a"), a.site, a.views[met], { lookAt, ground: ground(a.plan) });
+  const gb = drawScene($("scene-b"), b.site, b.views[met], { forceFull: true, compass: false, ground: ground(b.plan) });
+  const light = lighting(a.views[met]).source;
   $("stretch-a").textContent = `vertical scale stretched ${ga.stretch.toFixed(0)}×, Sun and Earth widened to match`;
+  $("light-a").textContent = light === "earth"
+    ? "The Sun is down. The ground is shown by Earthlight, roughly ten thousand times fainter than sunlight, with the exposure raised."
+    : light === "none" ? "No Sun and no Earth: the ground is dark." : "";
   $("stretch-b").textContent = `stretched ${gb.stretch.toFixed(0)}×`;
   $("look").hidden = ga.full;
   $("off-frame").textContent = offFrameNote(ga, a.views[met], lookAt);

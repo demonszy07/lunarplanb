@@ -1,7 +1,7 @@
 """Put everything the web page needs into one folder, ready to publish.
 
   site/                 -> dist/           (page, scripts, sky table)
-  data/sites/*.json     -> dist/data/sites/
+  data/sites/*          -> dist/data/sites/   (horizon .json and ground _view.bin)
 
 The site files keep a single home in data/sites/; dist/ is rebuilt every
 time and is not stored in the repository. Uses only the standard library
@@ -18,7 +18,8 @@ import sys
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 FIRST_LOAD = ["index.html", "style.css", "js/app.js", "js/sky.js", "js/visibility.js", "js/plan.js",
               "js/scene.js", "js/flightplan.js", "fonts/jost-latin-400-normal.woff2",
-              "fonts/jost-latin-500-normal.woff2", "data/sky.bin", "data/sites/site01.json"]
+              "fonts/jost-latin-500-normal.woff2", "data/sky.bin", "data/sites/site01.json",
+              "data/sites/site01_view.bin"]
 
 
 def main(out: str = "dist") -> int:
@@ -26,7 +27,8 @@ def main(out: str = "dist") -> int:
     shutil.rmtree(out, ignore_errors=True)
     shutil.copytree(os.path.join(ROOT, "site"), out)
     os.makedirs(os.path.join(out, "data", "sites"), exist_ok=True)
-    site_files = sorted(glob.glob(os.path.join(ROOT, "data", "sites", "*.json")))
+    site_files = sorted(glob.glob(os.path.join(ROOT, "data", "sites", "*.json")) +
+                        glob.glob(os.path.join(ROOT, "data", "sites", "*_view.bin")))
     for path in site_files:
         shutil.copy(path, os.path.join(out, "data", "sites"))
 

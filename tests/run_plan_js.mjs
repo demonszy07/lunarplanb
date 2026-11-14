@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { gaps, changes, untilChange, countdownText, formatMet, formatUtc, planB, siteFile, verdict } from "../site/js/plan.js";
 import { earthPhase } from "../site/js/sky.js";
+import { lommelSeeliger } from "../site/js/scene.js";
 
 const flags = [1, 1, 0, 0, 0, 1, 0, 1, 1, 1];
 assert.deepEqual(gaps(flags, 10), [{ start: 2, hours: 3 }, { start: 6, hours: 1 }]);
@@ -43,8 +44,8 @@ assert.equal(verdict(m(0.60, 100), m(0.80, 150), 240),
 assert.equal(verdict(m(0.80, 100), m(0.60, 150), 240),
   "A trade-off: plan A gets more sunlight (80 % against 60 %), plan B more Earth contact (150 h against 100 h).");
 
-const cases = JSON.parse(readFileSync(0, "utf8"));
-process.stdout.write(JSON.stringify(cases.map((c) => {
-  const p = earthPhase(...c);
-  return [p.lit, p.towardSun];
-})));
+const input = JSON.parse(readFileSync(0, "utf8"));
+process.stdout.write(JSON.stringify({
+  phase: input.phase.map((c) => { const p = earthPhase(...c); return [p.lit, p.towardSun]; }),
+  shade: input.shade.map((c) => lommelSeeliger(...c)),
+}));

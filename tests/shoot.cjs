@@ -36,13 +36,26 @@ if (require.main === module) (async () => {
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
     await page.goto(base);
     await page.waitForSelector("html[data-ready]", { timeout: 20000 });
+    if (process.env.SHOOT_SET) {
+      // e.g. SHOOT_SET='a-date=2027-04-02T00:00,a-height=5' changes the plan before the picture
+      const before = await page.evaluate(() => document.documentElement.dataset.ready);
+      for (const pair of process.env.SHOOT_SET.split(",")) {
+        const [id, value] = pair.split("=");
+        await page.evaluate(([i, v]) => {
+          const node = document.getElementById(i);
+          node.value = v;
+          node.dispatchEvent(new Event("change", { bubbles: true }));
+        }, [id, value]);
+      }
+      await page.waitForFunction((b) => document.documentElement.dataset.ready !== b, before);
+    }
     if (met > 0) {
       await page.keyboard.press("Home");
       for (let d = 0; d < Math.floor(met / 24); d++) await page.keyboard.press("Shift+ArrowRight");
       for (let h = 0; h < met % 24; h++) await page.keyboard.press("ArrowRight");
       await page.waitForFunction((m) => document.documentElement.dataset.met === String(m), met);
     }
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(600);
     await page.screenshot({ path: path.join(out, `${name}${suffix}.png`) });
     const info = await page.evaluate(() => ({
       met: document.documentElement.dataset.met,

@@ -9,8 +9,8 @@ const POWER = "#F5D68A", LINK = "#6AA9FF", LINE = "#2E2E2E", TEXT = "#E6E6E6", D
 const WIDTH = 328;
 // x positions: time labels, then for each plan a power band, an Earth band and room for words
 const COLS = [
-  { power: 86, powerWidth: 28, link: 120, linkWidth: 8, words: 134 },
-  { power: 208, powerWidth: 28, link: 242, linkWidth: 8, words: 256 },
+  { power: 86, powerWidth: 36, link: 128, linkWidth: 8, words: 141 },
+  { power: 212, powerWidth: 36, link: 254, linkWidth: 8, words: 267 },
 ];
 const NS = "http://www.w3.org/2000/svg";
 

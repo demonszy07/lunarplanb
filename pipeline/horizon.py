@@ -179,16 +179,74 @@ def local_frame(lat_deg: float, lon_deg: float):
     return p, n, e
 
 
-def _march(dem: Dem, p, n, e, az_rad, dist_m, ro):
-    """Elevation angle (rad) of the terrain at each (azimuth, distance)."""
-    d = dist_m / R_M                                  # central angle, shape (nd,)
-    u = np.cos(az_rad)[:, None] * n + np.sin(az_rad)[:, None] * e   # (naz, 3)
-    # great circle in 3D: q = cos d * p + sin d * u
-    q = np.cos(d)[None, :, None] * p + np.sin(d)[None, :, None] * u[:, None, :]
+def _points(p, n, e, az_rad, dist_m):
+    """Latitude and longitude (degrees) of the points at each (azimuth, distance),
+    walking along great circles in 3D: q = cos d * p + sin d * u."""
+    d = np.asarray(dist_m) / R_M
+    u = np.cos(az_rad)[..., None] * n + np.sin(az_rad)[..., None] * e
+    q = np.cos(d)[..., None] * p + np.sin(d)[..., None] * u
     lat = np.degrees(np.arctan2(q[..., 2], np.hypot(q[..., 0], q[..., 1])))
     lon = np.degrees(np.arctan2(q[..., 1], q[..., 0]))
-    rt = R_M + dem.sample(lat, lon)                   # NaN where there is no terrain data
-    return np.arctan2(rt * np.cos(d) - ro, rt * np.sin(d))
+    return lat, lon
+
+
+def _march(dem: Dem, p, n, e, az_rad, dist_m, ro, fallback: Dem | None = None):
+    """Elevation angle (rad) of the terrain at each (azimuth, distance), and how
+    many samples had to come from the fallback DEM."""
+    lat, lon = _points(p, n, e, az_rad[:, None], dist_m[None, :])
+    height = dem.sample(lat, lon)                     # NaN where there is no terrain data
+    borrowed = 0
+    if fallback is not None:
+        hole = np.isnan(height)
+        borrowed = int(hole.sum())
+        if borrowed:
+            height = np.where(hole, fallback.sample(lat, lon), height)
+    d = dist_m / R_M
+    rt = R_M + height
+    return np.arctan2(rt * np.cos(d) - ro, rt * np.sin(d)), borrowed
+
+
+def _sweep(lat_deg, lon_deg, observer_height_m, near, far, near_limit_km, far_limit_km,
+           n_az, detail, detail_limit_km):
+    """Elevation angle of the terrain along every ray. Shared by horizon() and view()."""
+    ground = near if detail is None else detail
+    site_height = float(ground.sample(lat_deg, lon_deg))
+    if np.isnan(site_height):
+        raise ValueError("site is outside the DEM or on a no-data cell")
+    ro = R_M + site_height + observer_height_m
+
+    p, n, e = local_frame(lat_deg, lon_deg)
+    az_deg = np.arange(n_az) * (360.0 / n_az)
+    az = np.radians(az_deg)
+
+    # (DEM, where its stretch ends in metres, DEM to borrow from where the first
+    # has no data); each stretch starts one step past the end of the one before,
+    # and the step is half a pixel
+    tiers = []
+    if detail is not None:
+        tiers.append((detail, detail_limit_km * 1000.0, near))
+    tiers.append((near, near_limit_km * 1000.0, None))
+    if far is not None and far_limit_km > near_limit_km:
+        tiers.append((far, far_limit_km * 1000.0, None))
+    dist, elev, begin, borrowed = [], [], 0.0, 0
+    for dem, end, fallback in tiers:
+        step = 0.5 * min(dem.dx, dem.dy)
+        d = np.arange(begin + step, end + 0.5 * step, step)
+        angles, took = _march(dem, p, n, e, az, d, ro, fallback)
+        dist.append(d)
+        elev.append(angles)
+        borrowed += took
+        begin = end
+    detail_samples = elev[0].size if detail is not None else 0
+    dist = np.concatenate(dist)
+    elev = np.concatenate(elev, axis=1)
+    missing = np.isnan(elev)
+    elev = np.where(missing, -np.inf, elev)
+    if np.any(np.isinf(elev.max(axis=1))):
+        raise ValueError("an azimuth has no terrain data at all")
+    return {"p": p, "n": n, "e": e, "ro": ro, "az_deg": az_deg, "dist": dist, "elev": elev,
+            "site_height": site_height, "skipped": int(missing.sum()), "samples": int(missing.size),
+            "detail_samples": detail_samples, "detail_borrowed": borrowed}
 
 
 def horizon(lat_deg: float, lon_deg: float, observer_height_m: float,
@@ -203,7 +261,8 @@ def horizon(lat_deg: float, lon_deg: float, observer_height_m: float,
     Terrain beyond the last distance is not considered.
 
     If a detail DEM is given it replaces the near DEM out to detail_limit_km,
-    and the height of the ground under the observer is read from it.
+    and the height of the ground under the observer is read from it. Where the
+    detail DEM has no data, the near DEM is used for that sample instead.
 
     Returns a dict with
       azimuth_deg    (n_az,) 0, 360/n_az, ... clockwise from north
@@ -213,51 +272,117 @@ def horizon(lat_deg: float, lon_deg: float, observer_height_m: float,
       site_height_m  DEM height at the site (above the 1737.4 km sphere)
       skipped        number of samples with no terrain data
       samples        total number of samples
+      detail_samples, detail_borrowed
+                     samples inside the detail stretch, and how many of them
+                     had to be read from the near DEM
     """
-    ground = near if detail is None else detail
-    site_height = float(ground.sample(lat_deg, lon_deg))
-    if np.isnan(site_height):
-        raise ValueError("site is outside the DEM or on a no-data cell")
-    ro = R_M + site_height + observer_height_m
-
-    p, n, e = local_frame(lat_deg, lon_deg)
-    az_deg = np.arange(n_az) * (360.0 / n_az)
-    az = np.radians(az_deg)
-
-    # (DEM, where its stretch ends in metres); each stretch starts one step
-    # past the end of the one before, and the step is half a pixel
-    tiers = []
-    if detail is not None:
-        tiers.append((detail, detail_limit_km * 1000.0))
-    tiers.append((near, near_limit_km * 1000.0))
-    if far is not None and far_limit_km > near_limit_km:
-        tiers.append((far, far_limit_km * 1000.0))
-    dist, elev, begin = [], [], 0.0
-    for dem, end in tiers:
-        step = 0.5 * min(dem.dx, dem.dy)
-        d = np.arange(begin + step, end + 0.5 * step, step)
-        dist.append(d)
-        elev.append(_march(dem, p, n, e, az, d, ro))
-        begin = end
-    dist = np.concatenate(dist)
-    elev = np.concatenate(elev, axis=1)
-
-    missing = np.isnan(elev)
-    elev = np.where(missing, -np.inf, elev)
-    best = np.argmax(elev, axis=1)
-    rows = np.arange(n_az)
-    best_elev = elev[rows, best]
-    if np.any(np.isinf(best_elev)):
-        raise ValueError("an azimuth has no terrain data at all")
-
+    s = _sweep(lat_deg, lon_deg, observer_height_m, near, far, near_limit_km, far_limit_km,
+               n_az, detail, detail_limit_km)
+    best = np.argmax(s["elev"], axis=1)
     return {
-        "azimuth_deg": az_deg,
-        "elevation_deg": np.degrees(best_elev),
-        "distance_km": dist[best] / 1000.0,
-        "site_height_m": site_height,
-        "skipped": int(missing.sum()),
-        "samples": int(missing.size),
+        "azimuth_deg": s["az_deg"],
+        "elevation_deg": np.degrees(s["elev"][np.arange(n_az), best]),
+        "distance_km": s["dist"][best] / 1000.0,
+        "site_height_m": s["site_height"],
+        "skipped": s["skipped"],
+        "samples": s["samples"],
+        "detail_samples": s["detail_samples"],
+        "detail_borrowed": s["detail_borrowed"],
     }
+
+
+# --------------------------------------------------------------------------
+# What the ground looks like below the skyline
+# --------------------------------------------------------------------------
+
+VIEW_AZ = 360          # one column per degree of azimuth
+VIEW_EL_TOP = 2.4      # degrees; above the highest skyline of any site
+VIEW_EL_STEP = 0.2
+VIEW_ROWS = 52         # down to -8 degrees
+
+
+def _slopes(dem: Dem, lat, lon):
+    """Ground slope toward east and toward north at the given points."""
+    x, y = dem.project(lat, lon)
+    zx = (dem.sample_xy(x + dem.dx, y) - dem.sample_xy(x - dem.dx, y)) / (2.0 * dem.dx)
+    zy = (dem.sample_xy(x, y + dem.dy) - dem.sample_xy(x, y - dem.dy)) / (2.0 * dem.dy)
+    lam = np.radians(lon - dem.lon0_deg)
+    # on the map, east at a point is (cos lon, -sin lon) and north is (sin lon, cos lon);
+    # map lengths are k times ground lengths, k = 2 k0 / (1 + sin |lat|)
+    k = 2.0 * dem.k0 / (1.0 + np.sin(np.radians(-lat)))
+    return k * (zx * np.cos(lam) - zy * np.sin(lam)), k * (zx * np.sin(lam) + zy * np.cos(lam))
+
+
+def view(lat_deg: float, lon_deg: float, observer_height_m: float,
+         near: Dem, far: Dem | None = None,
+         near_limit_km: float = 100.0, far_limit_km: float = 300.0,
+         detail: Dem | None = None, detail_limit_km: float = 5.0):
+    """Which way the ground faces at every point of the panorama.
+
+    For each azimuth (VIEW_AZ columns) and each elevation row, the first
+    terrain point the line of sight meets is found from the same march as the
+    horizon. The unit normal of the ground there is returned in the
+    observer's own east / north / up directions. Rows above the skyline carry
+    the normal of the skyline point, so the picture has no holes.
+
+    Returns normal (rows, columns, 3) and distance_km (rows, columns).
+    """
+    s = _sweep(lat_deg, lon_deg, observer_height_m, near, far, near_limit_km, far_limit_km,
+               VIEW_AZ, detail, detail_limit_km)
+    elev, dist = s["elev"], s["dist"]
+    row_el = np.radians(VIEW_EL_TOP - (np.arange(VIEW_ROWS) + 0.5) * VIEW_EL_STEP)
+    seen = np.maximum.accumulate(elev, axis=1)      # highest terrain so far along the ray
+    best = np.argmax(elev, axis=1)
+    index = np.empty((VIEW_ROWS, VIEW_AZ), dtype=np.int64)
+    for i in range(VIEW_AZ):
+        index[:, i] = np.minimum(np.searchsorted(seen[i], row_el), best[i])
+    d = dist[index]
+
+    az = np.radians(s["az_deg"])[None, :] * np.ones((VIEW_ROWS, 1))
+    lat, lon = _points(s["p"], s["n"], s["e"], az, d)
+    se = np.full(d.shape, np.nan)
+    sn = np.full(d.shape, np.nan)
+    # finest DEM first; each one fills what the finer ones could not
+    order = ([(detail, detail_limit_km * 1000.0)] if detail is not None else []) + \
+            [(near, near_limit_km * 1000.0)] + ([(far, np.inf)] if far is not None else [])
+    for dem, limit in order:
+        want = np.isnan(se) & (d <= limit)
+        if want.any():
+            e_slope, n_slope = _slopes(dem, lat[want], lon[want])
+            se[want], sn[want] = e_slope, n_slope
+    flat = np.isnan(se) | np.isnan(sn)
+    se[flat], sn[flat] = 0.0, 0.0
+
+    # normal in the frame of the terrain point, then in the Moon's frame, then in the observer's
+    la, lo = np.radians(lat), np.radians(lon)
+    up = np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], axis=-1)
+    north = np.stack([-np.sin(la) * np.cos(lo), -np.sin(la) * np.sin(lo), np.cos(la)], axis=-1)
+    east = np.stack([-np.sin(lo), np.cos(lo), np.zeros_like(lo)], axis=-1)
+    normal = up - se[..., None] * east - sn[..., None] * north
+    normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
+    in_observer_frame = np.stack([normal @ s["e"], normal @ s["n"], normal @ s["p"]], axis=-1)
+    return {"normal": in_observer_frame, "distance_km": d / 1000.0, "flat_filled": int(flat.sum())}
+
+
+def write_view(path: str, normal, header_extra: dict | None = None) -> None:
+    """File layout (little-endian), same idea as the sky table:
+      4 bytes "LVEW", uint32 length of the JSON header, JSON header (padded to an
+      even length), then for every row (top first) and column two signed bytes:
+      east and north part of the unit ground normal, times 127."""
+    import json
+    import struct
+    header = {
+        "columns": VIEW_AZ, "rows": VIEW_ROWS,
+        "azimuth": "column i is i degrees clockwise from north",
+        "elevation_top_deg": VIEW_EL_TOP, "elevation_step_deg": VIEW_EL_STEP,
+        "values": "int8 east, int8 north of the unit ground normal x 127, in the observer's east/north/up frame",
+    }
+    header.update(header_extra or {})
+    text = json.dumps(header, separators=(",", ":")).encode("utf-8")
+    text += b" " * ((-len(text)) % 2)
+    data = np.round(normal[..., :2] * 127.0).astype(np.int8)
+    with open(path, "wb") as f:
+        f.write(b"LVEW" + struct.pack("<I", len(text)) + text + data.tobytes())
 
 
 def top_peaks(az_deg, elev_deg, count: int = 3, min_separation_deg: float = 10.0):

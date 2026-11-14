@@ -49,7 +49,8 @@ def test_page_numbers_match_python(capsys):
     assert page["at27"]["label"] == "MET 027:00"
     assert page["at27"]["whenA"] == "2027-03-02 03:00 UTC"
     assert page["noteAt2m"]
-    assert page["laterDownloads"] == ["data/sites/site01_5m.json"]
+    assert sorted(page["laterDownloads"]) == ["data/sites/site01_5m.json", "data/sites/site01_5m_view.bin"]
+    assert "data/sites/site01_view.bin" in [d["url"] for d in page["firstLoad"]]
 
     # the plans the page opens with: A = Site 1, 2027-03-01 00:00 UTC, 10 days, panels at 2 m;
     # B = the same one week later

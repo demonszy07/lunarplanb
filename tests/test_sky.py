@@ -70,13 +70,11 @@ def test_known_rows_site_1():
 
 
 @needs_raw
-def test_small_table_is_current():
-    fresh = sky.reduce(ephemeris.load(RAW))
-    stored = sky.read_bin(BIN)
-    for ch in fresh["channels"]:
-        hours = stored["hours"]
-        value = ch["offset"] + ch["rate"] * hours + ch["scale"] * ch["ints"]
-        assert np.array_equal(value, stored[ch["name"]]), ch["name"]
+def test_small_table_is_current(tmp_path):
+    fresh = tmp_path / "sky.bin"
+    sky.write_bin(sky.reduce(ephemeris.load(RAW)), str(fresh))
+    with open(BIN, "rb") as stored:
+        assert fresh.read_bytes() == stored.read()
 
 
 @needs_raw

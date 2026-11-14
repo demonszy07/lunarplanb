@@ -13,7 +13,7 @@ pip install -r requirements.txt
 python pipeline/ephemeris.py      # downloads the Horizons table to data/raw/
 python pipeline/sky.py            # writes site/data/sky.bin for the browser
 python pipeline/check_sky.py      # compares with direct Horizons queries
-python pipeline/build_sites.py    # writes data/sites/[id].json (needs the two terrain files)
+python pipeline/build_sites.py    # writes data/sites/ (needs the terrain files, see the file)
 python tests/make_vectors.py      # writes tests/vectors.json from the Python reference
 python pipeline/monthly.py data/sites/site01.json 2027
 python pipeline/compare_barker.py  # check against Barker et al. 2021 (needs extra downloads, see the file)
@@ -24,7 +24,7 @@ python -m pytest tests
 
 To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. The page is published with Vercel: on every push to `main` it runs `python3 pipeline/publish.py dist` and serves `dist/` (settings in `vercel.json`).
 
-The two terrain files listed under Sources go in `data/raw/` (not stored in this repository).
+The terrain files listed under Sources go in `data/raw/` (the two large maps) and `data/raw/pgda78/` (the 5 m site maps); they are not stored in this repository.
 The JavaScript tests need Node.js; the page test also needs Playwright.
 
 ## Sites
@@ -41,22 +41,23 @@ All seven come from one NASA source, the PGDA product "High-Resolution LOLA Topo
 | mouton | Site20: Leibnitz beta plateau (Leibnitz beta is the earlier name of Mons Mouton) | -85.4034 | 31.6796 | 6461 | Highest 80 m terrain cell inside the footprint of the source's 5 m tile |
 | haworth | Haworth | -86.3628 | 336.7905 | 2841 | Highest 80 m terrain cell inside the footprint of the source's 5 m tile |
 
-Heights are above the 1737.4 km sphere, read from `LDEM_80S_80MPP_ADJ.TIF`. The observer is 2 m above the ground.
+Ground heights in this table were read from `LDEM_80S_80MPP_ADJ.TIF` when the points were chosen; the site files use the height in the 5 m map of each site, which differs by up to 4 m. Each site has two horizon files, for panels 2 m and 5 m above the ground, and for each a `_view.bin` file that says which way the ground faces below the skyline.
 
 ## Limits
 
 - Earth direction: the azimuth of Earth differs from JPL Horizons asked directly for a point on the Moon by 0.004 degrees (median) and up to 0.006 degrees; elevation by up to 0.0006 degrees (`data/sky_check.txt`). The Sun agrees to 0.0002 degrees. Likely cause, not proven here: the sub-Earth point in the Horizons table is corrected for light travel time only, while the direct query also applies the aberration of light (about 0.0057 degrees). No correction is applied. Earth's disc is about 1.9 degrees wide.
-- Terrain detail: the horizon within 100 km comes from an 80 m terrain model and the observer is 2 m above it. At these sites the horizon is often set by ground only a few hundred metres away (most directions at Site 1), which an 80 m model shows only roughly. Rocks, the lander itself and slopes smaller than 80 m are not in the result.
+- Terrain detail: the first 5 km around each site come from PGDA's 5 m site maps, then an 80 m map to 100 km and a 240 m map to 300 km. All seven sites have a 5 m map; at Haworth the chosen point is 4 km from the edge of its map, so 2.9 % of the near samples are read from the 80 m map. The 5 m maps are mostly interpolated between laser tracks (about 90 % of their pixels, per the source), so rocks, small craters, the lander itself and bumps of a metre or two are still not in the result. With panels at 2 m the horizon is often set by ground a few hundred metres away, which is why the page warns that real sunlight is likely lower.
 - Terrain beyond 300 km is ignored.
 - The Moon is treated as a sphere of radius 1737.4 km with the terrain heights on top. No refraction (there is no air).
 - Sun: the power number is the visible fraction of the disc cut into 32 vertical slices. It ignores the dimmer edge of the Sun (limb darkening), panel pointing and anything about the hardware.
 - Earth link: counted when Earth's centre is above the terrain. No antenna, no ground stations on Earth, no link budget.
 - Mission metrics are sampled once per step (one hour by default), so durations and times to first sunset are known to one step.
-- The browser table is sampled every 3 hours and stored as 16-bit numbers; against the hourly table this adds at most 0.001 degrees.
+- The browser table is sampled every 3 hours and stored as 16-bit numbers; against the hourly table this adds at most 0.001 degrees. The Sun's distance is kept once a day (largest error 2,600 km of 150 million, which changes the Sun's apparent size by less than 0.00001 degrees).
+- The picture of the ground: slopes are lit by the Lommel-Seeliger law from which way they face, at one point per degree of azimuth and 0.2 degrees of elevation. Shadows that one hill casts on another are not computed, and the brightness of all the ground follows the share of the Sun seen from the site, so distant peaks that would still catch the Sun after local sunset go dark with it. When the Sun is down the ground is drawn by Earthlight with the exposure raised; the drawn brightness is a display choice, not the true ratio (about 1 to 10,000, see Sources), and it scales with the lit share of Earth's disc, which is a simplification of how Earth's brightness changes with phase. The picture is for orientation; the numbers do not use it.
 
 ## Check against Barker et al. (2021)
 
-Table 2 of Barker et al. (2021) gives average illumination and the longest dark period for seven regions of interest (RoIs) at Site 1, for an observer 1 m and 5 m above the ground, from 2024-01-01 to 2026-01-01. We computed the same two numbers with this pipeline at the point stored with each RoI, with a separate hourly Horizons table for those two years (`pipeline/compare_barker.py`, output in `data/barker_comparison.txt`). Means over the seven RoIs:
+Table 2 of Barker et al. (2021) gives average illumination and the longest dark period for seven regions of interest (RoIs) at Site 1, for an observer 1 m and 5 m above the ground, from 2024-01-01 to 2026-01-01. We computed the same two numbers with this pipeline at the point stored with each RoI (the column "5 m map for the first 5 km" is the terrain the site files now use; the run was repeated after that change and gave identical numbers), with a separate hourly Horizons table for those two years (`pipeline/compare_barker.py`, output in `data/barker_comparison.txt`). Means over the seven RoIs:
 
 | Observer | Quantity | Barker Case A | Ours, 80 m terrain | Ours, 5 m map for the first 5 km | Barker Case C |
 |---|---|---|---|---|---|
@@ -69,7 +70,7 @@ At 5 m we are 0.0 to 2.5 points above Case A and 0.1 to 2.3 days shorter, the di
 
 What was measured:
 
-- Terrain detail. Replacing the first 5 km of our 80 m terrain with PGDA's 5 m map changes the average by 1.7 points at 1 m (largest 3.4) and 0.6 points at 5 m (largest 2.5), and the longest dark period by about half a day (largest 1.9). This is the size of the terrain uncertainty in the site numbers of this project. It does not explain the gap at 1 m.
+- Terrain detail. Replacing the first 5 km of our 80 m terrain with PGDA's 5 m map changes the average by 1.7 points at 1 m (largest 3.4) and 0.6 points at 5 m (largest 2.5), and the longest dark period by about half a day (largest 1.9). This was measured when the site numbers still used the 80 m map alone; it is why they now use the 5 m maps. It does not explain the gap at 1 m.
 - Clone percentiles. With our code on the paper's 100 clones, still at one point per RoI (`pipeline/compare_barker_clones.py`, `data/barker_clones.txt`): at 5 m the 1st percentile of average illumination is within -0.1 to +0.5 points of Case A, and the 99th percentile of the dark period is 0.0 to 2.0 days shorter. At 1 m a single point ranges over 48 to 86 % across the clones; its 1st percentile is 0.9 to 13.5 points below Case A, and the 99th percentile of its dark period runs from 3.3 days shorter to 7.2 days longer than Case A.
 - Area average, RoI 4 only, on the unperturbed 5 m map, 1 m observer (`pipeline/compare_barker_area.py`, `data/barker_area_roi4.txt`): the average over all 532 pixels is 77.5 % (single point 82.4 %, Case A 69.6 %), the mean longest dark period 10.0 days (single point 6.9, Case A 13.3), and the best-lit pixel every hour gives 86.85 % against Case C 86.81 %.
 
@@ -82,3 +83,6 @@ What was not measured: the area average on the clones, which is the exact Case A
 - Map projection formulas: Snyder, J. P. (1987), "Map Projections: A Working Manual", USGS Professional Paper 1395, polar stereographic on a sphere.
 - Sites and their regions: Barker, M. K., et al. (2021), "Improved LOLA elevation maps for south pole landing sites: error estimates and their impact on illumination conditions", Planetary and Space Science 203, 105119, https://doi.org/10.1016/j.pss.2020.105119. Data: NASA GSFC Planetary Geodynamics Data Archive, https://pgda.gsfc.nasa.gov/products/78 (5 m tiles and `*_ROIs.tgz` shapefiles). Site numbering follows Mazarico, E., et al. (2011), "Illumination conditions of the lunar polar regions using LOLA topography", Icarus 211, 1066-1081, https://doi.org/10.1016/j.icarus.2010.10.030.
 - Typeface: Jost by indestructible type (Owen Earl), SIL Open Font License 1.1, https://github.com/indestructible-type/Jost. Latin subset, weights 400 and 500, taken from the `@fontsource/jost` package 5.3.0; licence text in `site/fonts/OFL.txt`.
+- Near terrain: the 5 m/pixel site maps of the same PGDA product, https://pgda.gsfc.nasa.gov/products/78 (`Site01`, `Site04`, `Site07`, `Site11`, `Site20`, `Site23` and `Haworth`, files `*_final_adj_5mpp_surf.tif`), used for the first 5 km around each site.
+- Ground brightness: the Lommel-Seeliger law, I = mu0 / (mu0 + mu), as given in Hapke, B. (2012), "Theory of Reflectance and Emittance Spectroscopy", 2nd ed., Cambridge University Press.
+- Earthlight: Glenar, D. A., et al. (2019), "Earthshine as an illumination source at the Moon", Icarus 321, 841-856, https://doi.org/10.1016/j.icarus.2018.12.025 (preprint https://arxiv.org/abs/1904.00236): about 0.15 W/m2 on the Moon from the full Earth, roughly half reflected sunlight and half thermal emission, about 0.01 % of sunlight. Only the abstract was read for this project.

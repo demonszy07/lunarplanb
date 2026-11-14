@@ -124,3 +124,37 @@ def test_projection_matches_pyproj():
     x, y = dem.project(lats, lons)
     assert np.allclose(x, px, atol=1e-3)
     assert np.allclose(y, py, atol=1e-3)
+
+
+def test_view_normals_on_a_tilted_plane():
+    # Ground rising toward map +x at 10 %. Seen from the pole with longitude 0,
+    # map +x is east, so every visible point has the same normal:
+    # (-0.1, 0, 1) / |...| in east, north, up.
+    from horizon import view, VIEW_ROWS, VIEW_AZ
+    dem = Dem.synthetic(1000, 20.0)                   # +-10 km
+    rows, cols = np.indices(dem.data.shape)
+    x, _ = dem.pixel_centre_xy(rows, cols)
+    dem.data[:] = (0.1 * x).astype(np.float32)
+    v = view(-90.0, 0.0, 2.0, dem, None, near_limit_km=8.0)
+    n = v["normal"]
+    assert n.shape == (VIEW_ROWS, VIEW_AZ, 3)
+    assert v["flat_filled"] == 0
+    assert np.allclose(n[..., 0], -0.1 / np.sqrt(1.01), atol=2e-3)
+    assert np.allclose(n[..., 1], 0.0, atol=2e-3)
+    assert np.allclose(n[..., 2], 1.0 / np.sqrt(1.01), atol=2e-3)
+
+
+def test_detail_map_takes_over_near_the_site_and_borrows_where_it_has_no_data():
+    near = Dem.synthetic(2600, 80.0)                  # flat
+    detail = Dem.synthetic(1200, 5.0, fill=0.0)       # +-3 km around the pole
+    rows, cols = np.indices(detail.data.shape)
+    x, y = detail.pixel_centre_xy(rows, cols)
+    detail.data[(y > 990) & (y < 1010) & (np.abs(x) < 300)] = 100.0   # a 100 m block 1 km up the map
+    h = horizon(-90.0, 0.0, 2.0, near, None, detail=detail, detail_limit_km=5.0)
+    # toward longitude 0 (azimuth 0 at the pole) the block sets the horizon
+    assert h["elevation_deg"][0] == pytest.approx(np.degrees(np.arctan2(98.0, 992.5)), abs=0.1)
+    assert h["distance_km"][0] == pytest.approx(0.99, abs=0.02)
+    # the opposite way is the flat sphere, and beyond 3 km the samples came from the near map
+    assert h["elevation_deg"][360] == pytest.approx(-0.087, abs=0.002)
+    assert 0 < h["detail_borrowed"] < h["detail_samples"]
+    assert h["skipped"] == 0

@@ -20,8 +20,9 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
 ## Method
 - Frame MOON_ME, east-positive longitude, sphere R = 1737.4 km, no refraction.
 - Azimuth clockwise from north (N 0, E 90).
-- DEM: LDEM_80S_80MPP_ADJ.TIF to 100 km, LDEM_60S_240MPP_ADJ.TIF beyond, to 300 km.
-  Read georeferencing from the GeoTIFF; do not assume axis conventions.
+- DEM: the site's 5 m tile (PGDA product 78) for the first 5 km, LDEM_80S_80MPP_ADJ.TIF to
+  100 km, LDEM_60S_240MPP_ADJ.TIF beyond, to 300 km. Where the tile has no data the 80 m map
+  is used. Read georeferencing from the GeoTIFF; do not assume axis conventions.
 - Horizon: 720 azimuths. March along great circles in 3D, project to sample the DEM.
   tan(e) = (rt cos d - ro) / (rt sin d). Negative horizons are valid.
   Store the distance of the terrain point that sets each horizon value.
@@ -69,8 +70,11 @@ more than seven terrain sites.
   opens without a VPN, then put both addresses in the README.
 
 ## Status
-- Stage 1 of 4 done (14 Nov): the approved screen. Sticky view from the site (skyline, Sun,
-  Earth with phase, placeholder stars and flat grey ground), plan sentences, flight plan where
-  scrolling is the clock, countdowns, verdict, mission summary. First load 252 kB.
-- Next: stage 2 (5 m near terrain, Lommel-Seeliger shading, earthshine), stage 3 (Blue Marble
-  Earth, real stars, Eye / Camera), stage 4 (3D hero; write the approach and wait for approval).
+- Stage 1 of 4 done (14 Nov): the approved screen. Sticky view from the site, plan sentences,
+  flight plan where scrolling is the clock, countdowns, verdict, mission summary.
+- Stage 2 of 4 done (14 Nov): first 5 km of every site from its 5 m tile; ground lit by the
+  Lommel-Seeliger law from [id]_view.bin (which way the ground faces); Earthlight when the Sun
+  is down. Barker comparison rerun, numbers identical. First load 273 kB (sky.bin now keeps the
+  Sun's distance once a day). Not done: shadows cast by other hills (planned for the 3D view).
+- Next: stage 3 (Blue Marble Earth, real stars, Eye / Camera), stage 4 (3D hero; write the
+  approach in five points and wait for approval). Stars are still placeholders.

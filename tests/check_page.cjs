@@ -31,7 +31,9 @@ const { serve } = require("./shoot.cjs");
   const tableWhileLoading = await page.locator("table").count();
 
   await page.waitForSelector("html[data-ready]", { timeout: 20000 });
-  await page.waitForTimeout(300);
+  // the lit ground arrives just after the view is up; it still belongs to the first load
+  for (let i = 0; i < 50 && !downloads.some((d) => d.url.endsWith("site01_view.bin")); i++) await page.waitForTimeout(100);
+  await page.waitForTimeout(200);
   const firstLoadBytes = downloads.reduce((sum, d) => sum + d.bytes, 0);
   const firstLoad = downloads.slice();
 
@@ -62,6 +64,7 @@ const { serve } = require("./shoot.cjs");
   const noteAt2m = await page.locator("#low-note").isVisible();
   await page.selectOption("#a-height", "5");
   await page.waitForFunction(() => document.querySelector("#low-note").hidden);
+  for (let i = 0; i < 50 && !downloads.some((d) => d.url.endsWith("site01_5m_view.bin")); i++) await page.waitForTimeout(100);
   const values5m = await page.$$eval("td[data-key]", (cells) =>
     Object.fromEntries(cells.map((c) => [c.dataset.key, JSON.parse(c.dataset.value)])));
 

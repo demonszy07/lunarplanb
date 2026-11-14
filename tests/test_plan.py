@@ -12,6 +12,7 @@ import pytest
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.join(ROOT, "pipeline"))
 
+import shading  # noqa: E402
 import sky  # noqa: E402
 
 
@@ -26,15 +27,38 @@ def test_earth_phase_simple_cases():
     assert sky.earth_phase(100.0, 5.0, 100.0, 0.0)[1] == pytest.approx(0.0, abs=1e-9)    # straight above
 
 
+def test_lommel_seeliger_simple_cases():
+    # flat ground, light and eye both 30 degrees up: mu0 = mu, so I = 1/2
+    assert shading.lommel_seeliger(0.0, 0.0, 0.0, -30.0, 180.0, 30.0) == pytest.approx(0.5)
+    # light below the plane of the ground: black
+    assert shading.lommel_seeliger(0.0, 0.0, 0.0, -30.0, 180.0, -1.0) == 0.0
+    # a slope facing the light is brighter than flat ground, one facing away is black
+    toward = shading.lommel_seeliger(0.0, -0.3, 0.0, -5.0, 180.0, 1.0)     # normal leans south, Sun in the south
+    flat = shading.lommel_seeliger(0.0, 0.0, 0.0, -5.0, 180.0, 1.0)
+    away = shading.lommel_seeliger(0.0, 0.3, 0.0, -5.0, 180.0, 1.0)
+    assert toward > flat > away == 0.0
+    assert shading.EARTHSHINE_TO_SUNLIGHT == pytest.approx(1.1e-4, rel=0.01)
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
-def test_plan_logic_and_phase_in_javascript():
+def test_plan_logic_phase_and_shading_in_javascript():
     rng = np.random.default_rng(3)
-    cases = [[float(rng.uniform(0, 360)), float(rng.uniform(-2, 2)),
+    phase = [[float(rng.uniform(0, 360)), float(rng.uniform(-2, 2)),
               float(rng.uniform(0, 360)), float(rng.uniform(-8, 11))] for _ in range(200)]
+    shade = []
+    for _ in range(300):
+        slope, aspect = rng.uniform(0, 0.6), rng.uniform(0, 2 * np.pi)
+        shade.append([float(slope * np.sin(aspect)), float(slope * np.cos(aspect)),
+                      float(rng.uniform(0, 360)), float(rng.uniform(-8, 2.4)),
+                      float(rng.uniform(0, 360)), float(rng.uniform(-2, 8))])
     done = subprocess.run(["node", os.path.join(ROOT, "tests", "run_plan_js.mjs")],
-                          input=json.dumps(cases), capture_output=True, text=True)
+                          input=json.dumps({"phase": phase, "shade": shade}), capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
-    js = np.array(json.loads(done.stdout))
-    py = np.array([sky.earth_phase(*c) for c in cases], dtype=float)
+    out = json.loads(done.stdout)
+    js = np.array(out["phase"])
+    py = np.array([sky.earth_phase(*c) for c in phase], dtype=float)
     assert np.abs(js[:, 0] - py[:, 0]).max() < 1e-12
     assert np.abs((js[:, 1] - py[:, 1] + 180.0) % 360.0 - 180.0).max() < 1e-9
+    want = np.array([float(shading.lommel_seeliger(*c)) for c in shade])
+    assert np.count_nonzero(want) > 50 and np.count_nonzero(want == 0) > 50
+    assert np.abs(np.array(out["shade"]) - want).max() < 1e-12
