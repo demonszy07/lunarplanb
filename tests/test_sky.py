@@ -18,7 +18,7 @@ import sky  # noqa: E402
 
 RAW = os.path.join(ROOT, ephemeris.RAW_PATH)
 BIN = os.path.join(ROOT, "site", "data", "sky.bin")
-POINTS = [(-89.45, 222.69), (-89.90, 0.00), (-88.80, 68.00), (-87.50, 300.00), (-85.00, 150.00)]
+POINTS = [(-89.4527, 222.8513), (-89.90, 0.00), (-88.80, 68.00), (-87.50, 300.00), (-85.00, 150.00)]
 
 needs_raw = pytest.mark.skipif(not os.path.exists(RAW),
                                reason="raw Horizons table not downloaded (python pipeline/ephemeris.py)")
@@ -31,7 +31,7 @@ def az_diff(a, b):
 # -- geometry on made-up inputs (no data files needed) ----------------------
 
 def test_body_straight_overhead():
-    az, el, diam = sky.direction(-89.45, 222.69, -89.45, 222.69, 384400.0, 6378.137)
+    az, el, diam = sky.direction(-89.4527, 222.8513, -89.4527, 222.8513, 384400.0, 6378.137)
     assert el == pytest.approx(90.0, abs=1e-6)
     assert diam == pytest.approx(2 * np.degrees(np.arcsin(6378.137 / (384400.0 - 1737.4))), abs=1e-12)
 
@@ -118,8 +118,8 @@ def test_javascript_matches_python(capsys):
     for lat, lon in POINTS + [(-90.0, 0.0), (12.3, 45.6)]:
         for h in rng.uniform(0.0, last, 200):
             cases.append([float(h), lat, lon, float(rng.choice([0.0, 2.0, 1954.34]))])
-    cases += [[0.0, -89.45, 222.69, 0.0], [float(last), -89.45, 222.69, 0.0],
-              [3.0, -89.45, 222.69, 0.0], [7616.0, -89.45, 222.69, 0.0]]
+    cases += [[0.0, -89.4527, 222.8513, 0.0], [float(last), -89.4527, 222.8513, 0.0],
+              [3.0, -89.4527, 222.8513, 0.0], [7616.0, -89.4527, 222.8513, 0.0]]
 
     done = subprocess.run(
         ["node", os.path.join(ROOT, "tests", "run_sky_js.mjs")],

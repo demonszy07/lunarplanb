@@ -18,7 +18,7 @@ import ephemeris
 import sky
 
 # Site 1 plus four points spread in latitude and longitude (check points only)
-POINTS = [(-89.45, 222.69), (-89.90, 0.00), (-88.80, 68.00), (-87.50, 300.00), (-85.00, 150.00)]
+POINTS = [(-89.4527, 222.8513), (-89.90, 0.00), (-88.80, 68.00), (-87.50, 300.00), (-85.00, 150.00)]
 BODIES = {"sun": "10", "earth": "399"}
 N_TIMES = 40
 SEED = 20261114
@@ -33,7 +33,7 @@ def random_times() -> list[dt.datetime]:
 
 
 def ask_horizons(body: str, lat: float, lon: float, times: list[dt.datetime]) -> str:
-    path = os.path.join(RAW_DIR, f"{body}_{lat:+.2f}_{lon:.2f}.txt")
+    path = os.path.join(RAW_DIR, f"{body}_{lat:+.4f}_{lon:.4f}.txt")
     if os.path.exists(path):
         with open(path) as f:
             return f.read()

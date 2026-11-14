@@ -35,17 +35,12 @@ PEAK_RULE = ("The source gives only a 5 m/pixel terrain tile for this region. Th
              "centre of the highest 80 m cell of LDEM_80S_80MPP_ADJ.TIF inside the footprint of "
              "that tile.")
 
-# kind "given": latitude/longitude fixed by hand (only Site 1)
 # kind "roi":   X, Y point stored with a polygon in [Site]_ROIs.shp
 # kind "peak":  highest 80 m DEM cell inside the tile footprint (x0, x1, y0, y1 in metres)
 SITES = [
     {"id": "site01", "name": "Site 1, connecting ridge", "pgda_name": "Site01: Connecting ridge",
-     "kind": "given", "lat": -89.45, "lon": 222.69,
-     "file": f"{PGDA_DATA}/Site01/Site01_ROIs.tgz",
-     "rule": ("Coordinates 89.45 S, 222.69 E were set in the project brief as Site 1 of the "
-              "numbering PGDA uses (Mazarico et al. 2011). They were not re-read from that paper "
-              "during the build. Checked against the source: the point is 16 m outside the edge "
-              "of RoI 4 in Site01_ROIs.shp, whose stored point is 89.4527 S, 222.8513 E.")},
+     "kind": "roi", "roi": 4, "xy": (-11287.5, -12167.5),
+     "file": f"{PGDA_DATA}/Site01/Site01_ROIs.tgz", "rule": ROI_RULE + " RoI 4 of 7, 11900 m2."},
     {"id": "site04", "name": "Site 4, Shackleton rim", "pgda_name": "Site04: Shackleton rim",
      "kind": "roi", "roi": 1, "xy": (-2812.5, -6647.5),
      "file": f"{PGDA_DATA}/Site04/Site04_ROIs.tgz", "rule": ROI_RULE + " RoI 1 of 4, 5450 m2."},
@@ -61,9 +56,7 @@ SITES = [
     {"id": "mouton", "name": "Mons Mouton plateau", "pgda_name": "Site20: Leibnitz beta plateau",
      "kind": "peak", "tile": (65000.0, 81000.0, 110000.0, 126000.0),
      "file": f"{PGDA_DATA}/Site20/Site20_final_adj_5mpp_surf.tif",
-     "rule": PEAK_RULE + (" The source calls this region Leibnitz beta plateau; treating that as "
-                          "the Mons Mouton plateau is this project's reading of the name and was "
-                          "not confirmed from a NASA page during the build.")},
+     "rule": PEAK_RULE + " Leibnitz beta is the earlier name of Mons Mouton."},
     {"id": "haworth", "name": "Haworth", "pgda_name": "Haworth",
      "kind": "peak", "tile": (-52900.0, -23100.0, 75600.0, 105400.0),
      "file": f"{PGDA_DATA}/Haworth/Haworth_final_adj_5mpp_surf.tif",
@@ -85,8 +78,6 @@ def highest_cell(dem: Dem, tile):
 
 
 def site_point(site: dict, dem: Dem):
-    if site["kind"] == "given":
-        return site["lat"], site["lon"]
     x, y = site["xy"] if site["kind"] == "roi" else highest_cell(dem, site["tile"])
     lat, lon = dem.unproject(x, y)
     return round(float(lat), 4), round(float(lon), 4)

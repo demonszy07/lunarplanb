@@ -91,7 +91,7 @@ def download(path: str = RAW_PATH, first_year: int = 2026, last_year: int = 2031
 def load(path: str = RAW_PATH) -> dict:
     """Read the raw table into arrays on a uniform one-hour grid.
 
-    Returns hours (since 2026-01-01 00:00 UT), and for Earth and Sun the
+    Returns hours (since 2026-01-01 00:00 UT; negative before that), and for Earth and Sun the
     sub-point longitude (unwrapped, degrees), latitude (degrees) and
     centre-to-centre distance (km).
     """
@@ -116,8 +116,8 @@ def load(path: str = RAW_PATH) -> dict:
                          float(f_[7]), float(f_[9])])
     hours = np.array(hours)
     c = np.array(cols)
-    if not np.array_equal(hours, np.arange(len(hours), dtype=float)):
-        raise ValueError("table is not a gap-free one-hour grid starting at the epoch")
+    if not np.array_equal(np.diff(hours), np.ones(len(hours) - 1)):
+        raise ValueError("table is not a gap-free one-hour grid")
 
     return {
         "hours": hours,

@@ -194,12 +194,16 @@ def _march(dem: Dem, p, n, e, az_rad, dist_m, ro):
 def horizon(lat_deg: float, lon_deg: float, observer_height_m: float,
             near: Dem, far: Dem | None = None,
             near_limit_km: float = 100.0, far_limit_km: float = 300.0,
-            n_az: int = N_AZ):
+            n_az: int = N_AZ,
+            detail: Dem | None = None, detail_limit_km: float = 5.0):
     """Terrain horizon around a site.
 
     The near DEM is used out to near_limit_km, the far DEM from there to
     far_limit_km. The step along each ray is half a pixel of the DEM in use.
     Terrain beyond the last distance is not considered.
+
+    If a detail DEM is given it replaces the near DEM out to detail_limit_km,
+    and the height of the ground under the observer is read from it.
 
     Returns a dict with
       azimuth_deg    (n_az,) 0, 360/n_az, ... clockwise from north
@@ -210,23 +214,31 @@ def horizon(lat_deg: float, lon_deg: float, observer_height_m: float,
       skipped        number of samples with no terrain data
       samples        total number of samples
     """
-    site_height = float(near.sample(lat_deg, lon_deg))
+    ground = near if detail is None else detail
+    site_height = float(ground.sample(lat_deg, lon_deg))
     if np.isnan(site_height):
-        raise ValueError("site is outside the near DEM or on a no-data cell")
+        raise ValueError("site is outside the DEM or on a no-data cell")
     ro = R_M + site_height + observer_height_m
 
     p, n, e = local_frame(lat_deg, lon_deg)
     az_deg = np.arange(n_az) * (360.0 / n_az)
     az = np.radians(az_deg)
 
-    step_near = 0.5 * min(near.dx, near.dy)
-    dist = [np.arange(step_near, near_limit_km * 1000.0 + 0.5 * step_near, step_near)]
-    elev = [_march(near, p, n, e, az, dist[0], ro)]
+    # (DEM, where its stretch ends in metres); each stretch starts one step
+    # past the end of the one before, and the step is half a pixel
+    tiers = []
+    if detail is not None:
+        tiers.append((detail, detail_limit_km * 1000.0))
+    tiers.append((near, near_limit_km * 1000.0))
     if far is not None and far_limit_km > near_limit_km:
-        step_far = 0.5 * min(far.dx, far.dy)
-        dist.append(np.arange(near_limit_km * 1000.0 + step_far,
-                              far_limit_km * 1000.0 + 0.5 * step_far, step_far))
-        elev.append(_march(far, p, n, e, az, dist[1], ro))
+        tiers.append((far, far_limit_km * 1000.0))
+    dist, elev, begin = [], [], 0.0
+    for dem, end in tiers:
+        step = 0.5 * min(dem.dx, dem.dy)
+        d = np.arange(begin + step, end + 0.5 * step, step)
+        dist.append(d)
+        elev.append(_march(dem, p, n, e, az, d, ro))
+        begin = end
     dist = np.concatenate(dist)
     elev = np.concatenate(elev, axis=1)
 

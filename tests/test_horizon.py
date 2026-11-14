@@ -20,7 +20,7 @@ def flat_far():
 
 
 def test_flat_sphere_observer_2m():
-    h = horizon(-89.45, 222.69, 2.0, flat_near(), flat_far())
+    h = horizon(-89.4527, 222.8513, 2.0, flat_near(), flat_far())
     # dip of the horizon = -acos(R / (R + 2 m)) = -0.0869 deg
     assert np.allclose(h["elevation_deg"], -0.087, atol=0.002)
     # tangent point at sqrt(2 R h) = 2.64 km
@@ -28,7 +28,7 @@ def test_flat_sphere_observer_2m():
 
 
 def test_flat_sphere_observer_5km():
-    h = horizon(-89.45, 222.69, 5000.0, flat_near(), flat_far())
+    h = horizon(-89.4527, 222.8513, 5000.0, flat_near(), flat_far())
     # -acos(R / (R + 5 km)) = -4.342 deg, tangent point 131.6 km away (in the far DEM)
     assert np.allclose(h["elevation_deg"], -4.342, atol=0.005)
     assert np.allclose(h["distance_km"], 131.6, atol=1.0)
@@ -105,10 +105,10 @@ def test_projection_round_trip_and_axes():
     x, y = dem.project(-89.0, 90.0)
     assert x > 0 and abs(y) < 1e-6
     # distance from the pole on the map is close to the arc length near the pole
-    assert np.hypot(*dem.project(-89.0, 222.69)) == pytest.approx(R_M * np.radians(1.0), rel=1e-4)
-    lat, lon = dem.unproject(*dem.project(-89.45, 222.69))
-    assert lat == pytest.approx(-89.45, abs=1e-9)
-    assert lon == pytest.approx(222.69, abs=1e-9)
+    assert np.hypot(*dem.project(-89.0, 222.8513)) == pytest.approx(R_M * np.radians(1.0), rel=1e-4)
+    lat, lon = dem.unproject(*dem.project(-89.4527, 222.8513))
+    assert lat == pytest.approx(-89.4527, abs=1e-9)
+    assert lon == pytest.approx(222.8513, abs=1e-9)
 
 
 def test_projection_matches_pyproj():
@@ -118,8 +118,8 @@ def test_projection_matches_pyproj():
         "+proj=stere +lat_0=-90 +lon_0=0 +k=1 +x_0=0 +y_0=0 +R=1737400 +units=m +no_defs",
         always_xy=True)
     dem = Dem.synthetic(100, 80.0)
-    lats = np.array([-89.45, -88.0, -85.0, -81.0])
-    lons = np.array([222.69, 10.0, 130.0, 300.0])
+    lats = np.array([-89.4527, -88.0, -85.0, -81.0])
+    lons = np.array([222.8513, 10.0, 130.0, 300.0])
     px, py = tr.transform(lons, lats)
     x, y = dem.project(lats, lons)
     assert np.allclose(x, px, atol=1e-3)
