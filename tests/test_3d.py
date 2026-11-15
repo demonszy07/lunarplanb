@@ -56,24 +56,29 @@ def test_site_files_agree_with_the_horizon_files(capsys):
     lines = []
     for path in files:
         header, grids, far = build_3d.read_3d(path)
-        assert [(lv["name"], lv["size"]) for lv in header["levels"]] == [("wide", 251), ("middle", 201), ("near", 101)]
-        assert os.path.getsize(path) < 235000
+        assert [(lv["name"], lv["size"]) for lv in header["levels"]] == [
+            ("outer", 251), ("wide", 251), ("local", 201), ("middle", 201), ("near", 101)]
+        assert os.path.getsize(path) < 445000
         for suffix, height in (("", 2.0), ("_5m", 5.0)):
             with open(os.path.join(SITES_DIR, header["site"] + suffix + ".json")) as f:
                 site = json.load(f)
             assert (site["lat"], site["lon"]) == (header["lat"], header["lon"])
             # the ground under the observer is the same ground
             assert grids["near"][50, 50] == pytest.approx(site["site_height_m"], abs=0.02)
-            # the far-only horizon can never be above the full horizon, and is the full
-            # horizon wherever that one is set by terrain beyond the corners of the wide grid
+            # a far-only horizon can never be above the full horizon, and is the full horizon
+            # wherever that one is set by terrain beyond the corners of the square left out
             full, dist = np.array(site["elevation_deg"]), np.array(site["distance_km"])
-            assert np.all(far[height] <= full + 0.001)
-            beyond = dist > 28.3
-            assert np.allclose(far[height][beyond], full[beyond], atol=0.001)
+            for square in (19200.0, 120000.0):
+                profile = far[(square, height)]
+                assert np.all(profile <= full + 0.001)
+                beyond = dist > square * 2 ** 0.5 / 1000 + 0.1
+                assert np.allclose(profile[beyond], full[beyond], atol=0.001)
+            beyond = dist > 19200.0 * 2 ** 0.5 / 1000 + 0.1
         mid_vs_near = abs(grids["middle"][100, 100] - grids["near"][50, 50])
         lines.append(f"{header['site']:9} centre: near {grids['near'][50, 50]:8.2f} m, middle differs by {mid_vs_near:5.2f} m, "
+                     f"local by {abs(grids['local'][100, 100] - grids['near'][50, 50]):5.2f} m, "
                      f"wide by {abs(grids['wide'][125, 125] - grids['near'][50, 50]):5.2f} m; "
-                     f"horizon set beyond the wide grid at {int(beyond.sum()):3d} of 720 azimuths (panels 5 m)")
+                     f"horizon set beyond the shadowed mesh at {int(beyond.sum()):3d} of 720 azimuths (panels 5 m)")
     with capsys.disabled():
         print("\n" + "\n".join(lines))
 
@@ -85,8 +90,9 @@ def test_near_grid_is_the_5m_map():
     tile = Dem.from_geotiff(os.path.join(RAW, "pgda78", "Site01_final_adj_5mpp_surf.tif"))
     _, lats, lons = build_3d.grid_points(header["lat"], header["lon"], 250.0, 5.0)
     want = tile.sample(lats[0], lons[0])
-    assert np.max(np.abs(grids["near"] - want)) <= header["levels"][2]["scale"] / 2 + 1e-4
+    scale = {lv["name"]: lv["scale"] for lv in header["levels"]}
+    assert np.max(np.abs(grids["near"] - want)) <= scale["near"] / 2 + 1e-4
     # middle grid: mean of 4 x 4 samples of the same map
     heights, borrowed = build_3d.level_heights(header["lat"], header["lon"], 2000.0, 20.0, 4, tile, None)
     assert borrowed == 0.0
-    assert np.max(np.abs(grids["middle"] - heights)) <= header["levels"][1]["scale"] / 2 + 1e-4
+    assert np.max(np.abs(grids["middle"] - heights)) <= scale["middle"] / 2 + 1e-4

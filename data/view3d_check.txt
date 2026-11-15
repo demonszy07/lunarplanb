@@ -2,15 +2,18 @@ Cast shadows of the 3D view against straight rays through the same height grids 
 Site 1, opening plan (landing 2027-03-01 00:00 UTC). Only ground that faces the light is counted.
 'wrong' = the two differ by more than half (lit against dark).
 
-MET  30  light az   27.43 el -0.109  whole 40 km grid, 160 m            lit share: rays 0.573, 3D 0.577; wrong  0.8 %
+MET  30  light az   27.43 el -0.109  whole shadowed mesh, to 19.2 km    lit share: rays 0.575, 3D 0.581; wrong  1.1 %
+MET  30  light az   27.43 el -0.109  2 to 7 km, 80 m grid               lit share: rays 0.635, 3D 0.632; wrong  0.4 %
 MET  30  light az   27.43 el -0.109  240 m to 1 km, finer shadow map    lit share: rays 0.766, 3D 0.760; wrong  0.6 %
-MET  30  light az   27.43 el -0.109  1 to 1.6 km, wide shadow map       lit share: rays 0.796, 3D 0.808; wrong  2.1 %
-MET 100  light az  351.87 el -0.106  whole 40 km grid, 160 m            lit share: rays 0.754, 3D 0.754; wrong  0.6 %
+MET  30  light az   27.43 el -0.109  1 to 1.6 km, wide shadow map       lit share: rays 0.796, 3D 0.808; wrong  2.2 %
+MET 100  light az  351.87 el -0.106  whole shadowed mesh, to 19.2 km    lit share: rays 0.764, 3D 0.767; wrong  0.8 %
+MET 100  light az  351.87 el -0.106  2 to 7 km, 80 m grid               lit share: rays 0.767, 3D 0.764; wrong  0.5 %
 MET 100  light az  351.87 el -0.106  240 m to 1 km, finer shadow map    lit share: rays 0.531, 3D 0.531; wrong  0.5 %
 MET 100  light az  351.87 el -0.106  1 to 1.6 km, wide shadow map       lit share: rays 0.647, 3D 0.669; wrong  3.2 %
-MET 150  light az  326.45 el -0.229  whole 40 km grid, 160 m            lit share: rays 0.769, 3D 0.770; wrong  0.8 %
+MET 150  light az  326.45 el -0.229  whole shadowed mesh, to 19.2 km    lit share: rays 0.777, 3D 0.781; wrong  1.0 %
+MET 150  light az  326.45 el -0.229  2 to 7 km, 80 m grid               lit share: rays 0.810, 3D 0.811; wrong  0.7 %
 MET 150  light az  326.45 el -0.229  240 m to 1 km, finer shadow map    lit share: rays 0.804, 3D 0.802; wrong  0.6 %
-MET 150  light az  326.45 el -0.229  1 to 1.6 km, wide shadow map       lit share: rays 0.875, 3D 0.885; wrong  2.7 %
+MET 150  light az  326.45 el -0.229  1 to 1.6 km, wide shadow map       lit share: rays 0.875, 3D 0.885; wrong  2.6 %
 
 Share of the Sun's disc in view: the 3D scene (pixels through a long lens, disc about 180 px wide)
 beside the 2D number (32 slices against the 720-point horizon). Panels at 2 m.
@@ -23,11 +26,11 @@ Sun fully hidden                         2027-05-05 03:00 UTC  Sun az  328.70 el
 partly cut by near terrain (0.4 km)      2027-03-04 00:00 UTC  Sun az    6.10 el -0.082  horizon there set at    0.4 km
                                          2D 0.591   3D 0.624 (15835 of 25368 px)   mesh alone 0.624  strip alone 1.000   in view: 2D yes, 3D yes
 partly cut by far terrain (42 km)        2027-03-14 10:00 UTC  Sun az  239.01 el -1.119  horizon there set at   41.9 km
-                                         2D 0.614   3D 0.614 (15429 of 25148 px)   mesh alone 1.000  strip alone 0.614   in view: 2D yes, 3D yes
+                                         2D 0.614   3D 0.728 (18307 of 25148 px)   mesh alone 0.728  strip alone 1.000   in view: 2D yes, 3D yes
 just after sunset                        2027-03-18 04:00 UTC  Sun az  193.36 el -1.475  horizon there set at    0.7 km
                                          2D 0.000   3D 0.000 (0 of 24996 px)   mesh alone 0.000  strip alone 1.000   in view: 2D no, 3D no
 extra: partly cut by terrain 9 km away   2027-06-13 11:00 UTC  Sun az  208.11 el -1.696  horizon there set at    9.0 km
                                          2D 0.469   3D 0.586 (14064 of 23992 px)   mesh alone 0.586  strip alone 1.000   in view: 2D yes, 3D yes
 
-In view / not in view agrees in 6 of 6 moments.
-First pictures in the test browser (software graphics): median 550.9 ms each, 214856 triangles.
+In view / not in view agrees in 6 of 6 moments. Largest difference of the share: 0.117.
+First pictures in the test browser (software graphics): median 864.6 ms each, 378696 triangles.

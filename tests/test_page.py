@@ -92,7 +92,8 @@ def test_page_numbers_match_python(capsys):
     if three["view3d"] == "slow":
         assert float(three["frameMs"]) > 40 and three["view"] == "2d" and three["canvasHidden"] and three["modeHidden"]
     else:
-        assert float(three["frameMs"]) <= 40 and three["view"] == "3d" and not three["canvasHidden"]
+        # the page opens with the panorama also when 3D is there; the choice of view is offered
+        assert float(three["frameMs"]) <= 40 and three["view"] == "2d" and three["canvasHidden"] and not three["modeHidden"]
     assert page["starsWithEye"] == "shown"
     assert page["starsWithCamera"] == "hidden"            # the Sun is in view at landing
     assert "Apollo" in page["cameraNote"]

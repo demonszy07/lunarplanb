@@ -8,8 +8,9 @@ The surface between grid points is two flat triangles per cell, split along
 the south-west / north-east diagonal, as in the mesh.
 
 Not the same as the mesh in one place: where the grids meet, the mesh leans
-the finer grid's heights toward the coarser one (1.6 to 1.92 km and 200 to
-240 m from the site); this reference uses the stored heights everywhere.
+the finer grid's heights toward the coarser one (200 to 240 m, 1.6 to 1.92 km
+and 7.04 to 7.68 km from the site); this reference uses the stored heights
+everywhere. Shadows are cast and received inside the wide grid only (19.2 km).
 """
 
 import os
@@ -25,17 +26,34 @@ from horizon import R_M  # noqa: E402
 HALF_DISC = 0.4244          # centre of half a disc, in radii from its middle: 4 / (3 pi)
 
 
+# the mesh draws each grid out to this far from the site (m), finest first
+REACH = [("near", 240.0), ("middle", 1920.0), ("local", 7680.0), ("wide", 19200.0)]
+
+
 def surfaces(path):
-    """The three grids of a file: positions (east, north, up) and heights."""
+    """The grids of a file: step and heights, and the height of the site."""
     header, grids, _ = build_3d.read_3d(path)
     out = {"site_height": float(grids["near"][50, 50])}
-    for name, half, step, _ in build_3d.LEVELS:
-        n = grids[name].shape[0]
-        axis = (np.arange(n) - (n - 1) / 2) * step
-        x, y = np.meshgrid(axis, axis)
-        out[name] = {"position": build_3d.local_position(x, y, grids[name], out["site_height"]),
-                     "step": step, "height": grids[name]}
+    for name, half, step, _, _ in build_3d.LEVELS:
+        out[name] = {"step": step, "height": grids[name]}
     return out
+
+
+def ground_height(surf, x, y):
+    """Height of the mesh x m east and y m north of the site: the finest grid drawn there."""
+    reach = np.maximum(np.abs(x), np.abs(y))
+    h = height_at(surf["wide"], x, y)
+    for name, half in reversed(REACH[:-1]):
+        h = np.where(reach < half, height_at(surf[name], x, y), h)
+    return h
+
+
+def mesh_points(surf, size, half):
+    """Places on the mesh under the pixel centres of a picture taken from straight
+    above (size pixels square, half metres from the site to each edge): east, north, up."""
+    axis = (np.arange(size) - (size - 1) / 2) * (2 * half / size)
+    x, y = np.meshgrid(axis, axis)
+    return build_3d.local_position(x, y, ground_height(surf, x, y), surf["site_height"]), np.maximum(np.abs(x), np.abs(y))
 
 
 def height_at(grid, x, y):
@@ -69,11 +87,7 @@ def lit_share(surf, points, az_deg, el_deg, diameter_deg):
             scale = np.where(flat > 0, d / np.where(flat > 0, flat, 1.0), 1.0)
             x, y = q[..., 0] * scale, q[..., 1] * scale
             ray_height = np.hypot(flat, radial) - R_M
-            fine = (np.abs(x) < 240) & (np.abs(y) < 240)
-            mid = (np.abs(x) < 1900) & (np.abs(y) < 1900)
-            inside = (np.abs(x) < 20000) & (np.abs(y) < 20000)
-            ground = np.where(fine, height_at(surf["near"], x, y),
-                              np.where(mid, height_at(surf["middle"], x, y), height_at(surf["wide"], x, y)))
-            free &= ~(inside & (ground > ray_height))
+            inside = (np.abs(x) < 19200) & (np.abs(y) < 19200)
+            free &= ~(inside & (ground_height(surf, x, y) > ray_height))
         total += free
     return total / 2

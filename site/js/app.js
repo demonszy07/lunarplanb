@@ -515,10 +515,7 @@ $("view-mode").addEventListener("change", () => {
 const sceneA = $("scene-a");
 const fingers = new Map();                     // pointers that are down on view A: id -> [x, y]
 let turned = 0, spread = 0;
-const fingerSpread = () => {
-  const [p, q] = [...fingers.values()];
-  return Math.hypot(p[0] - q[0], p[1] - q[1]);
-};
+const touchSpread = (touches) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
 function zoomBy(factor) {
   if (!three.lib || viewMode() !== "above") return;
   const { nearest, farthest } = three.lib.ABOVE_DISTANCE;
@@ -543,28 +540,31 @@ sceneA.addEventListener("pointerdown", (event) => {
   fingers.set(event.pointerId, [event.clientX, event.clientY]);
   sceneA.setPointerCapture(event.pointerId);
   if (fingers.size === 1) turned = 0;
-  if (fingers.size === 2) spread = fingerSpread();
 });
 sceneA.addEventListener("pointermove", (event) => {
   const last = fingers.get(event.pointerId);
   if (!last || !state.runs) return;
   fingers.set(event.pointerId, [event.clientX, event.clientY]);
-  if (fingers.size >= 2) {                             // two fingers: nearer or farther
-    const now = fingerSpread();
-    if (spread > 0 && now > 0) zoomBy(spread / now);
-    spread = now;
-    return;
-  }
+  if (fingers.size >= 2) return;                       // two fingers: see touchmove below
   const dx = event.clientX - last[0];
   turned += Math.abs(dx);
   if (turned >= 4) turnBy(dx);                        // less than that is a click, not a drag
 });
 for (const type of ["pointerup", "pointercancel"]) {
-  sceneA.addEventListener(type, (event) => { fingers.delete(event.pointerId); spread = 0; });
+  sceneA.addEventListener(type, (event) => { fingers.delete(event.pointerId); });
 }
-// two fingers on the view from above belong to the view, not to the page
+// Two fingers on the view from above belong to the view, not to the page:
+// moving them apart brings the camera nearer, together takes it farther.
+// (Touch events, because the browser may take two moving fingers for a scroll
+// and stop sending pointer events.)
+sceneA.addEventListener("touchstart", (event) => { spread = event.touches.length === 2 ? touchSpread(event.touches) : 0; }, { passive: true });
+sceneA.addEventListener("touchend", () => { spread = 0; }, { passive: true });
 sceneA.addEventListener("touchmove", (event) => {
-  if (event.touches.length >= 2 && viewMode() === "above" && three.view && event.cancelable) event.preventDefault();
+  if (event.touches.length !== 2 || viewMode() !== "above" || !three.view) return;
+  if (event.cancelable) event.preventDefault();
+  const now = touchSpread(event.touches);
+  if (spread > 0 && now > 0) zoomBy(spread / now);
+  spread = now;
 }, { passive: false });
 sceneA.addEventListener("wheel", (event) => {
   if (viewMode() !== "above" || !three.view || three.frame.full) return;

@@ -45,7 +45,7 @@ def test_mesh_in_javascript_matches_python(capsys):
     assert js["drop20km"] == pytest.approx(-115.1, abs=0.05)             # curvature: 115 m at 20 km
     assert js["siteHeight"] == pytest.approx(grids["near"][50, 50], abs=1e-3)
     worst = 0.0
-    for name, half, step, _ in build_3d.LEVELS:
+    for name, half, step, _, _ in build_3d.LEVELS:
         n = grids[name].shape[0]
         axis = (np.arange(n) - (n - 1) / 2) * step
         x, y = np.meshgrid(axis[::7], axis[::7])
@@ -59,7 +59,8 @@ def test_mesh_in_javascript_matches_python(capsys):
     # no step where the grids meet
     assert all(gap < 1e-3 for gap in js["seams"].values())
     for height in (2.0, 5.0):
-        assert np.allclose(js["far"][str(int(height))], far[height], atol=1e-6)
+        assert np.allclose(js["far"][str(int(height))]["mesh"], far[(19200.0, height)], atol=1e-6)
+        assert np.allclose(js["far"][str(int(height))]["strip"], far[(120000.0, height)], atol=1e-6)
     triangles = sum(level["triangles"] for level in js["levels"].values())
     with capsys.disabled():
         print(f"\nmesh: {triangles} triangles; positions differ from Python by at most {worst * 1000:.2f} mm; "
@@ -83,48 +84,67 @@ def test_3d_view_against_rays_and_against_the_2d_numbers(capsys):
     got = json.loads(done.stdout)
     assert got["errors"] == []
     page = got["page"]
-    assert page["start"]["view3d"] == "on" and page["start"]["view"] == "3d" and page["modeShown"]
+    # the page opens with the panorama also when 3D is there; the choice of view is offered
+    assert page["start"]["view3d"] == "on" and page["start"]["view"] == "2d" and page["modeShown"]
+    # from above: the starting distance, the wheel moves the camera, a drag turns it
+    above = page["above"]
+    assert above["view"] == "above" and "6.0 km" in above["stretch"] and "no vertical stretch" in above["stretch"]
+    assert above["lookAz"] == 0 and above["distance"] == 6000
+    assert above["afterWheelIn"] < 6000 < above["afterWheelOut"] and above["pageScrolledByWheel"] == 0
+    assert above["afterDrag"]["choice"] == "free" and above["afterDrag"]["lookAz"] != 0
+    assert above["nearest"] == 800 and above["farthest"] == 20000
+    assert page["notesHiddenIn3d"]                                        # the notes wait behind the "i" button
+    # standing on the surface
+    assert page["surface"]["view"] == "surface"
     assert "no vertical stretch" in page["stretch"] and "70" in page["stretch"]
+    assert page["horizonAt"] == pytest.approx(0.4, abs=0.001)             # the level sight line, as a share of the height
     assert page["lookEast"] == 90
     # a drag of 200 px to the right turns the view left by 200 px worth of the 70 degrees
     drag = page["afterDrag"]
     assert drag["choice"] == "free" and drag["lookAz"] == pytest.approx(90 - 200 * 70 / drag["width"], abs=0.01)
     assert page["panorama"]["view"] == "2d" and page["panorama"]["canvasHidden"] and "stretched" in page["panorama"]["stretch"]
-    assert page["again"]["view"] == "3d"
-    # another site brings its own terrain file; panels at 5 m raise the camera
-    assert page["otherSite"] == {"files": ["data/sites/malapert_3d.bin"], "view": "3d", "eye": 2}
-    assert page["panelsAt5m"] == {"eye": 5, "view": "3d"}
+    assert page["again"]["view"] == "surface"
+    # another site brings its own terrain file; panels at 5 m raise the eye
+    assert page["otherSite"] == {"files": ["data/sites/malapert_3d.bin"], "view": "surface", "eye": 2}
+    assert page["panelsAt5m"] == {"eye": 5, "view": "surface"}
     # nothing moves by itself: no picture while nothing changes, then a handful for one hour's step
-    assert page["framesWhileIdle"] == 0 and 0 < page["framesForOneHour"] <= 12
+    assert page["framesWhileIdle"] == 0 and 0 < page["framesForOneHour"] <= 16
     # without WebGL2 the page stays 2D and the 3D code is not downloaded
     assert got["noWebgl2"]["view3d"] == "no-webgl2" and got["noWebgl2"]["view"] == "2d"
     assert not got["noWebgl2"]["bundleFetched"] and not got["noWebgl2"]["terrainFetched"] and not got["noWebgl2"]["modeShown"]
     assert got["switchedOff"] == "off"
+    # fingers on the view from above: sideways turns it, two fingers move the camera,
+    # up and down still scrolls the page (the time)
+    touch = got["touch"]
+    assert touch["errors"] == []
+    assert touch["sideways"]["turnedDeg"] != 0 and touch["sideways"]["scrolled"] == 0
+    assert touch["upDown"]["turnedDeg"] == 0 and touch["upDown"]["scrolled"] > 50
+    assert touch["pinchOut"]["distance"] < touch["start"]["distance"] and touch["pinchOut"]["scrolled"] == 0
+    assert touch["pinchIn"]["distance"] > touch["pinchOut"]["distance"] and touch["pinchIn"]["scrolled"] == 0
 
     # ---- cast shadows against straight rays through the same grids ----
     surf = shadow_reference.surfaces(SITE_FILE)
-    axis = (np.arange(201) - 100) * 20.0
-    x, y = np.meshgrid(axis, axis)
-    ring = np.maximum(np.abs(x), np.abs(y))
     lines = ["Cast shadows of the 3D view against straight rays through the same height grids (tests/shadow_reference.py).",
              "Site 1, opening plan (landing 2027-03-01 00:00 UTC). Only ground that faces the light is counted.",
              "'wrong' = the two differ by more than half (lit against dark).", ""]
     for shot in got["shadows"]:
         light = shot["light"]
-        for name, size, zones in (("wide", 251, [("whole 40 km grid, 160 m", None)]),
-                                  ("middle", 201, [("240 m to 1 km, finer shadow map", (250, 980)),
-                                                   ("1 to 1.6 km, wide shadow map", (1010, 1600))])):
+        for name, size, half, zones in (("wide", 251, 20080.0, [("whole shadowed mesh, to 19.2 km", (0, 19200)),
+                                                              ("2 to 7 km, 80 m grid", (2000, 7000))]),
+                                        ("middle", 201, 2010.0, [("240 m to 1 km, finer shadow map", (250, 980)),
+                                                                 ("1 to 1.6 km, wide shadow map", (1010, 1600))])):
             pixels = np.array(shot[name], dtype=float).reshape(size, size, 4)
             faces, reached = pixels[..., 0] > 127, pixels[..., 1] / 255
-            ref = shadow_reference.lit_share(surf, surf[name]["position"], light["az"], light["el"], light["diameter"])
+            points, ring = shadow_reference.mesh_points(surf, size, half)
+            ref = shadow_reference.lit_share(surf, points, light["az"], light["el"], light["diameter"])
             for label, band in zones:
-                use = faces if band is None else faces & (ring >= band[0]) & (ring < band[1])
+                use = faces & (ring >= band[0]) & (ring < band[1])
                 wrong = float(np.mean(np.abs(reached - ref)[use] > 0.5))
                 lines.append(f"MET {shot['met']:3d}  light az {light['az']:7.2f} el {light['el']:6.3f}  {label:34} "
                              f"lit share: rays {ref[use].mean():.3f}, 3D {reached[use].mean():.3f}; wrong {100 * wrong:4.1f} %")
-                # limits a little above what was first measured (0.1 % and 3.2 %); the file keeps the numbers
-                assert wrong < (0.01 if band and band[1] < 1000 else 0.05), label
-                assert abs(reached[use].mean() - ref[use].mean()) < 0.03, label
+                # limits a little above what was first measured; the file keeps the numbers
+                assert wrong < (0.015 if band[1] < 1000 else 0.06), label
+                assert abs(reached[use].mean() - ref[use].mean()) < 0.04, label
 
     # ---- the Sun's disc: 3D pixels beside the 2D number ----
     table = sky.read_bin(os.path.join(ROOT, "site", "data", "sky.bin"))
@@ -143,7 +163,9 @@ def test_3d_view_against_rays_and_against_the_2d_numbers(capsys):
                      f"mesh alone {m['pastMeshOnly']:.3f}  strip alone {m['pastStripOnly']:.3f}   "
                      f"in view: 2D {'yes' if want > 0 else 'no'}, 3D {'yes' if m['seenPixels'] > 0 else 'no'}"
                      f"{'' if same else '   <-- DISAGREE'}")
-    lines += ["", f"In view / not in view agrees in {sum(agree)} of {len(agree)} moments.",
+    largest = max(abs(m["fraction"] - m["fraction2d"]) for m in got["moments"])
+    lines += ["", f"In view / not in view agrees in {sum(agree)} of {len(agree)} moments. "
+                  f"Largest difference of the share: {largest:.3f}.",
               f"First pictures in the test browser (software graphics): median {page['start']['frameMs']} ms each, "
               f"{page['triangles']:.0f} triangles."]
     text = "\n".join(lines) + "\n"

@@ -30,7 +30,7 @@ for (const level of levels) {
 }
 // seams: along the edge of each finer mesh, its heights against the coarser surface at the same place
 const byName = Object.fromEntries(levels.map((level) => [level.name, level]));
-for (const [fine, coarse] of [["middle", "wide"], ["near", "middle"]]) {
+for (const [fine, coarse] of [["wide", "outer"], ["local", "wide"], ["middle", "local"], ["near", "middle"]]) {
   const grid = terrain.levels[fine], n = grid.n, c = (n - 1) / 2, edge = Math.round(DRAW[fine].half / grid.step);
   let gap = 0;
   for (let t = -edge; t <= edge; t++) {
@@ -41,5 +41,7 @@ for (const [fine, coarse] of [["middle", "wide"], ["near", "middle"]]) {
   }
   out.seams[fine + " meets " + coarse] = gap;
 }
-for (const height in terrain.far) out.far[height] = Array.from(terrain.far[height].slice(0, 720));
+for (const height in terrain.farMesh) {
+  out.far[height] = { mesh: Array.from(terrain.farMesh[height]), strip: Array.from(terrain.farStrip[height]) };
+}
 process.stdout.write(JSON.stringify(out));
