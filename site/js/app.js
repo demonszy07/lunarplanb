@@ -348,8 +348,10 @@ function showMoment(force) {
   const canvasA = $("scene-a");
   $("scene-3d").hidden = !solid;
   // over a 3D picture the words stand on black (style.css); set before measuring where they are
+  const wasSolid = $("view-a").classList.contains("solid");
   $("view-a").classList.toggle("solid", !!solid);
   $("view-a").classList.toggle("above", solid === "above");
+  if (wasSolid !== !!solid) fitFields();       // the sentence's words may change size with the view
   let frame;                                    // { full, centre, windowDeg } of what view A shows
   if (solid) {
     if (three.siteRef !== a.site) { three.view.setSite(a.site, three.terrain.farStrip[a.plan.height]); three.siteRef = a.site; }

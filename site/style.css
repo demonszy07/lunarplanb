@@ -116,7 +116,6 @@ a { color: inherit; }
 .view-a.solid { height: auto; }
 .view-a.solid canvas { height: 50vh; }
 .view-a.solid figcaption { position: static; padding: 12px 20px 2px; }
-.view-a.solid .sentence { font-size: 17px; }
 
 /* the mission summary sits right under the verdict, before the flight plan */
 .summary { margin-bottom: 14px; max-width: 600px; }
