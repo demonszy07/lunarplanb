@@ -17,6 +17,10 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
 - Before adding a feature, check the cut order in the plan.
 - Commit messages carry no AI attribution lines (no "Co-Authored-By: Claude", no
   "Claude-Session"); set by the user on 15 Nov, when those lines were removed from history.
+- Commits are made as "Tural Fataliyev <300107351+demonszy07@users.noreply.github.com>"
+  (GitHub's private address for demonszy07; never a personal e-mail). Set it with
+  git config user.name / user.email before the first commit of a session. All earlier
+  commits were given this identity on 15 Nov, dates unchanged.
 
 ## Method
 - Frame MOON_ME, east-positive longitude, sphere R = 1737.4 km, no refraction.
@@ -75,8 +79,8 @@ more than seven terrain sites.
   workflow once (Actions tab, Run workflow) and open https://demonszy07.github.io/lunarplanb/.
 - The first-stage jury is in Türkiye, where vercel.app does not open without a VPN.
   When the repo is made public, add GitHub Pages as a second address:
-  restore .github/workflows/pages.yml from commit d30c8a5 ("Add the first page and publish it
-  with GitHub Pages"; it was fef2a9d before the commit messages were rewritten on 15 Nov), have the user set
+  restore .github/workflows/pages.yml from commit 067a038 ("Add the first page and publish it
+  with GitHub Pages"; it was fef2a9d, then d30c8a5, before history was rewritten on 15 Nov), have the user set
   Settings > Pages > Source to "GitHub Actions", check that the github.io address
   opens without a VPN, then put both addresses in the README.
 
