@@ -97,6 +97,30 @@ more than seven terrain sites.
   3D view 790 kB / 373 kB (three.js bundle 558 kB / 141 kB, terrain file 231 kB, not
   compressible); everything 1138 kB / 654 kB.
 
+### In progress (15 Nov): 3D rework after the user looked at the preview on a phone
+The user's verdict: the eye-level 3D looks like the old panorama and the terrain is blurry.
+Do NOT publish to main; stay on the preview branch; the user approves after looking.
+Commit and push after every small step. If a question comes up, pick the most sensible option
+and write the choice here instead of stopping. Tasks, tick them here as they are done:
+- [ ] 1. Blur: find the cause and say it; draw at device pixel ratio (max 2), antialias on;
+      show the same moment before and after.
+- [ ] 2. Main 3D view from above ("View: from above"): camera circles the landing point about
+      35 degrees up; drag turns, pinch or wheel zooms; default distance where the mesh looks
+      best (5 to 8 km; enlarge the middle grid if needed and report the size). Landing point
+      marked; Sun and Earth directions as thin arrows on the ground, north marked separately.
+      Same mesh, Lommel-Seeliger and cast shadows; shadows move with the cursor. No vertical stretch.
+- [ ] 3. Eye level stays as second choice ("stand on the surface"), horizon at about 40 % of the
+      canvas height so the sky does not fill the screen.
+- [ ] 4. Page opens with the 2D panorama; view choice: panorama / from above / stand on the
+      surface. All numbers come from the 2D pipeline also in 3D; README Limits: the 3D mesh is
+      coarser, with the largest measured difference of the Sun's share.
+- [ ] 5. Touch: horizontal drag and two fingers on the canvas move the 3D view; vertical
+      scrolling still moves the page (time).
+Done when: phone and desktop screenshots from above at a moment with visible shadows; the frame
+time rule holds; this note is up to date.
+Choices made without asking:
+(none yet)
+
 ### Stage 4 as built (the approved plan, with what came out)
 - Terrain: pipeline/build_3d.py writes data/sites/[id]_3d.bin (40 km at 160 m, 4 km at 20 m,
   500 m at 5 m, plus the far-only skyline for panels at 2 m and 5 m). Curvature is in the
