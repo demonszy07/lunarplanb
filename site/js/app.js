@@ -4,7 +4,7 @@
 
 import { parseSky } from "./sky.js";
 import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc, parseUtc } from "./plan.js";
-import { drawScene, drawOverlay, offFrameNote, parseView, lighting, shadeGround, earthPictureSize } from "./scene.js";
+import { drawScene, drawOverlay, drawAboveMarks, offFrameNote, parseView, lighting, shadeGround, earthPictureSize } from "./scene.js";
 import { discFraction } from "./visibility.js";
 import { drawHead, drawTrack, drawOverview, stripWidth, PX_PER_HOUR, TRACK_TOP } from "./flightplan.js";
 
@@ -129,8 +129,12 @@ async function realSky() {
 // first pictures take longer than 40 ms each, it is taken out again and the
 // panorama stays. "?3d=off" and "?3d=force" in the address override this, for checks.
 const SLOW_MS = 40;
+// The page opens with the panorama ("2d"). The two 3D views: "above" circles the
+// landing point, "surface" stands on it. Each view remembers where it looks.
 const three = { view: null, lib: null, terrains: new Map(), terrain: null, terrainSite: "", siteRef: null,
-                map: null, freeAz: 0 };
+                map: null, distance: 6000,
+                look: { "2d": "sun", above: "0", surface: "sun" }, freeAz: { "2d": 0, above: 0, surface: 0 } };
+const viewMode = () => $("view-mode").value;
 const flag = (name, value) => { document.documentElement.dataset[name] = value; };
 
 async function start3d() {
@@ -150,8 +154,9 @@ async function start3d() {
     const [a] = state.runs, siteId = a.plan.site, canvas = $("scene-a");
     const terrain = await terrain3d(siteId);
     view.setTerrain(terrain);
-    view.setSite(a.site, terrain.far[a.plan.height]);
-    const times = view.time(moment3d(a, state.met, terrain), canvas.clientWidth, canvas.clientHeight, pixelRatio3d())
+    view.setSite(a.site, terrain.farStrip[a.plan.height]);
+    three.distance = three.lib.ABOVE_DISTANCE.start;
+    const times = view.time(moment3d(a, state.met, terrain, "above"), canvas.clientWidth, canvas.clientHeight, pixelRatio3d())
       .sort((x, y) => x - y);
     const median = times[Math.floor(times.length / 2)];
     flag("frameMs", median.toFixed(1));
@@ -175,7 +180,7 @@ async function start3d() {
     fitFields();
     flag("view3d", "on");
     // for the checks in tests/check_3d.cjs
-    window.lunar3d = { view, moment: () => moment3d(state.runs[0], state.met),
+    window.lunar3d = { view, three, moment: () => moment3d(state.runs[0], state.met),
                        measureSun: () => three.view.measureSun(moment3d(state.runs[0], state.met)) };
     showMoment(true);
   } catch (error) {
@@ -207,31 +212,31 @@ function terrain3d(siteId) {
   });
 }
 
-// Is the 3D picture what view A shows right now?
+// Which 3D picture view A shows right now: "above", "surface", or "" for the panorama.
 function in3d(run) {
-  if (!three.view || $("view-mode").value !== "3d") return false;
-  if (three.terrainSite !== run.plan.site) { terrain3d(run.plan.site).catch(() => {}); return false; }
-  return true;
+  if (!three.view || viewMode() === "2d") return "";
+  if (three.terrainSite !== run.plan.site) { terrain3d(run.plan.site).catch(() => {}); return ""; }
+  return viewMode();
 }
 
-// Azimuth at the middle of view A.
+// Azimuth at the middle of view A (from above: the way the camera faces).
 function lookAzimuth(view) {
   const choice = $("look-at").value;
-  return choice === "earth" ? view.earthAz : choice === "free" ? three.freeAz : choice === "sun" ? view.sunAz : Number(choice);
+  return choice === "earth" ? view.earthAz : choice === "free" ? three.freeAz[viewMode()] : choice === "sun" ? view.sunAz : Number(choice);
 }
 
 // Everything the 3D view needs to know about one moment.
-function moment3d(run, met, terrain = three.terrain) {
+function moment3d(run, met, terrain = three.terrain, mode = viewMode() === "above" ? "above" : "surface") {
   const view = run.views[met], hours = run.start + met, site = run.site;
   const light = lighting(view);
   const picture = ground(run.plan);
   // far mountains are not in the mesh: the share of the Sun's disc they leave
   // in view dims all the near ground; near terrain is left to the mesh itself
-  const far = terrain ? terrain.far[run.plan.height] : null;
+  const far = terrain ? terrain.farMesh[run.plan.height] : null;
   const strength = light.source === "sun" && far ? discFraction(far, view.sunAz, view.sunEl, view.sunDiameter) : light.strength;
   const hideStars = $("seen-by").value === "camera" && view.sunFraction > 0;
   return {
-    view, lookAz: lookAzimuth(view),
+    view, lookAz: lookAzimuth(view), mode, distance: three.distance,
     light: { source: light.source, strength,
              az: light.source === "earth" ? view.earthAz : view.sunAz, el: light.source === "earth" ? view.earthEl : view.sunEl,
              colour: light.source === "earth" ? [120 / 255, 140 / 255, 175 / 255] : [184 / 255, 180 / 255, 172 / 255],
@@ -300,23 +305,31 @@ function showMoment(force) {
   const met = metFromScroll();
   const [a, b] = state.runs;
   const solid = in3d(a);
-  const key = [met, window.innerWidth, window.innerHeight, $("look-at").value, three.freeAz, $("seen-by").value, solid].join();
+  const key = [met, window.innerWidth, window.innerHeight, $("look-at").value, three.freeAz[viewMode()], three.distance,
+               $("seen-by").value, solid].join();
   if (!force && key === state.drawn) return;
   state.drawn = key;
   state.met = met;
   const lookAz = lookAzimuth(a.views[met]);
 
-  // view A: the 3D picture with the direction labels over it, or the panorama
+  // view A: one of the 3D pictures with its marks over it, or the panorama
   const canvasA = $("scene-a");
   $("scene-3d").hidden = !solid;
   let frame;                                    // { full, centre, windowDeg } of what view A shows
   if (solid) {
-    if (three.siteRef !== a.site) { three.view.setSite(a.site, three.terrain.far[a.plan.height]); three.siteRef = a.site; }
+    if (three.siteRef !== a.site) { three.view.setSite(a.site, three.terrain.farStrip[a.plan.height]); three.siteRef = a.site; }
     three.map = three.view.draw(moment3d(a, met), canvasA.clientWidth, canvasA.clientHeight, pixelRatio3d());
-    drawOverlay(canvasA, three.map);
-    frame = { full: false, centre: lookAz, windowDeg: three.map.windowDeg };
-    $("stretch-a").textContent = `${three.map.windowDeg}° wide, no vertical stretch`;
-    $("draw-note").textContent = "Ground within 20 km is a 3D model with cast shadows; farther mountains are a painted strip. Sun and Earth have their true size.";
+    if (solid === "above") {
+      drawAboveMarks(canvasA, three.map, a.views[met]);
+      frame = { full: false, centre: lookAz, windowDeg: 60, above: true };
+      $("stretch-a").textContent = `from ${(three.distance / 1000).toFixed(1)} km away, no vertical stretch`;
+      $("draw-note").textContent = "The ground is a 3D model from the LOLA heights. Shadows are cast by terrain within 20 km of the landing point. The arrows lie on the ground and point toward the Sun and Earth.";
+    } else {
+      drawOverlay(canvasA, three.map);
+      frame = { full: false, centre: lookAz, windowDeg: three.map.windowDeg };
+      $("stretch-a").textContent = `${three.map.windowDeg}° wide, no vertical stretch`;
+      $("draw-note").textContent = "The ground is a 3D model from the LOLA heights. Shadows are cast by terrain within 20 km. Sun and Earth have their true size.";
+    }
   } else {
     three.map = null;
     frame = drawScene(canvasA, a.site, a.views[met],
@@ -326,7 +339,7 @@ function showMoment(force) {
   }
   three.frame = frame;
   $("view-a").classList.toggle("turns", !frame.full);
-  flag("view", solid ? "3d" : "2d");
+  flag("view", solid || "2d");
   const gb = drawScene($("scene-b"), b.site, b.views[met],
     { forceFull: true, compass: false, ground: ground(b.plan), ...skyFor(1, b, met, $("scene-b")) });
   document.documentElement.dataset.stars = !state.stars ? "none yet" : $("seen-by").value === "camera" && a.views[met].sunFraction > 0 ? "hidden" : "shown";
@@ -345,7 +358,7 @@ function showMoment(force) {
     : light === "none" ? "A: no Sun, no Earth, ground dark" : "";
   $("stretch-b").textContent = `stretched ${gb.stretch.toFixed(0)}×`;
   $("look").hidden = frame.full;
-  $("off-frame").textContent = offFrameNote(frame, a.views[met]);
+  $("off-frame").textContent = frame.above ? "" : offFrameNote(frame, a.views[met]);
 
   const label = formatMet(met);
   $("met").textContent = label;
@@ -480,34 +493,81 @@ async function showPlans() {
 for (const id of ["a-site", "a-date", "a-days", "a-height", "b-choice", "b-site"]) {
   $(id).addEventListener("change", showPlans);
 }
-for (const id of ["look-at", "seen-by", "view-mode"]) $(id).addEventListener("change", () => { fitFields(); showMoment(true); });
-
-// Dragging view A sideways turns it, when it shows a window and not the whole circle.
-const turning = { x: null, moved: 0 };
-$("scene-a").addEventListener("pointerdown", (event) => {
-  if (event.button !== 0 || !three.frame || three.frame.full) return;
-  turning.x = event.clientX;
-  turning.moved = 0;
-  $("scene-a").setPointerCapture(event.pointerId);
+for (const id of ["look-at", "seen-by"]) $(id).addEventListener("change", () => { fitFields(); showMoment(true); });
+// each view keeps its own direction
+$("look-at").addEventListener("change", () => { three.look[viewMode()] = $("look-at").value; });
+$("view-mode").addEventListener("change", () => {
+  const pick = $("look-at"), want = three.look[viewMode()];
+  pick.querySelector("[value=free]").hidden = want !== "free";
+  pick.value = want;
+  fitFields();
+  showMoment(true);
 });
-$("scene-a").addEventListener("pointermove", (event) => {
-  if (turning.x === null || !state.runs) return;
-  const dx = event.clientX - turning.x, width = $("scene-a").clientWidth;
-  turning.moved += Math.abs(dx);
-  if (turning.moved < 4) return;                       // a click, not a drag
-  const pick = $("look-at");
+
+// ---- turning and zooming view A ----------------------------------------------
+// One finger or the mouse dragged sideways turns the view (when it shows a
+// window and not the whole circle). From above, two fingers or the wheel move
+// the camera nearer or farther. A finger moving up or down still scrolls the
+// page, that is, the time: the canvas has "touch-action: pan-y".
+const sceneA = $("scene-a");
+const fingers = new Map();                     // pointers that are down on view A: id -> [x, y]
+let turned = 0, spread = 0;
+const fingerSpread = () => {
+  const [p, q] = [...fingers.values()];
+  return Math.hypot(p[0] - q[0], p[1] - q[1]);
+};
+function zoomBy(factor) {
+  if (!three.lib || viewMode() !== "above") return;
+  const { nearest, farthest } = three.lib.ABOVE_DISTANCE;
+  three.distance = Math.min(farthest, Math.max(nearest, three.distance * factor));
+  onMove();
+}
+function turnBy(dx) {
+  const mode = viewMode(), pick = $("look-at");
   if (pick.value !== "free") {
-    three.freeAz = lookAzimuth(state.runs[0].views[state.met]);
+    three.freeAz[mode] = lookAzimuth(state.runs[0].views[state.met]);
     pick.querySelector("[value=free]").hidden = false;
     pick.value = "free";
+    three.look[mode] = "free";
     fitFields();
   }
   // the scene follows the pointer: degrees per pixel at the middle of the picture
-  three.freeAz = (three.freeAz - dx * three.frame.windowDeg / width + 360) % 360;
-  turning.x = event.clientX;
+  three.freeAz[mode] = (three.freeAz[mode] - dx * three.frame.windowDeg / sceneA.clientWidth + 360) % 360;
   onMove();
+}
+sceneA.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || !three.frame || three.frame.full) return;
+  fingers.set(event.pointerId, [event.clientX, event.clientY]);
+  sceneA.setPointerCapture(event.pointerId);
+  if (fingers.size === 1) turned = 0;
+  if (fingers.size === 2) spread = fingerSpread();
 });
-for (const type of ["pointerup", "pointercancel"]) $("scene-a").addEventListener(type, () => { turning.x = null; });
+sceneA.addEventListener("pointermove", (event) => {
+  const last = fingers.get(event.pointerId);
+  if (!last || !state.runs) return;
+  fingers.set(event.pointerId, [event.clientX, event.clientY]);
+  if (fingers.size >= 2) {                             // two fingers: nearer or farther
+    const now = fingerSpread();
+    if (spread > 0 && now > 0) zoomBy(spread / now);
+    spread = now;
+    return;
+  }
+  const dx = event.clientX - last[0];
+  turned += Math.abs(dx);
+  if (turned >= 4) turnBy(dx);                        // less than that is a click, not a drag
+});
+for (const type of ["pointerup", "pointercancel"]) {
+  sceneA.addEventListener(type, (event) => { fingers.delete(event.pointerId); spread = 0; });
+}
+// two fingers on the view from above belong to the view, not to the page
+sceneA.addEventListener("touchmove", (event) => {
+  if (event.touches.length >= 2 && viewMode() === "above" && three.view && event.cancelable) event.preventDefault();
+}, { passive: false });
+sceneA.addEventListener("wheel", (event) => {
+  if (viewMode() !== "above" || !three.view || three.frame.full) return;
+  event.preventDefault();                              // over the view from above the wheel moves the camera
+  zoomBy(Math.exp(event.deltaY * (event.deltaMode === 1 ? 0.05 : 0.0015)));
+}, { passive: false });
 window.addEventListener("resize", fitFields);
 
 let queued = false;

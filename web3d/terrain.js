@@ -1,5 +1,5 @@
 // The terrain of the 3D view, from a [site]_3d.bin file (written by
-// pipeline/build_3d.py, the reference): three square height grids, one inside
+// pipeline/build_3d.py, the reference): five square height grids, one inside
 // the other, turned into positions and normals. No drawing here, so the same
 // code runs in the tests.
 //
@@ -13,13 +13,18 @@ export const R_M = 1737400;
 //   blend: over this width inside that edge its heights lean toward the
 //          coarser grid, so the two meet without a step
 //   hole:  the part left out because the next finer grid is drawn there
-// The edges sit on grid lines of both grids (1920 = 12 x 160 = 96 x 20,
-// 240 = 12 x 20 = 48 x 5), so no gaps open between them.
+// The edges sit on grid lines of both grids (19200 = 20 x 960 = 120 x 160,
+// 7680 = 48 x 160 = 96 x 80, 1920 = 24 x 80 = 96 x 20, 240 = 12 x 20 = 48 x 5),
+// so no gaps open between them. Coarsest first.
 export const DRAW = {
-  wide: { half: 20000, blend: 0, hole: 1920 },
+  outer: { half: 120000, blend: 0, hole: 19200 },
+  wide: { half: 19200, blend: 1920, hole: 7680 },
+  local: { half: 7680, blend: 640, hole: 1920 },
   middle: { half: 1920, blend: 320, hole: 240 },
   near: { half: 240, blend: 40, hole: 0 },
 };
+// Shadows are cast and received inside the wide grid; the outer grid is only lit.
+export const SHADOWED = ["wide", "local", "middle", "near"];
 
 export function parseTerrain(buffer) {
   const bytes = new DataView(buffer);
@@ -35,14 +40,16 @@ export function parseTerrain(buffer) {
     pos += 2 * n * n;
     levels[level.name] = { name: level.name, n, step: level.step_m, heights };
   }
-  const far = {};
+  // far-only horizons: farMesh[height] from terrain beyond the shadowed mesh
+  // (19.2 km), farStrip[height] from terrain beyond the outer grid (120 km)
+  const farMesh = {}, farStrip = {};
   for (const entry of header.far_horizon) {
     const profile = new Float32Array(entry.count);
     for (let k = 0; k < entry.count; k++) profile[k] = entry.scale_deg * bytes.getInt16(pos + 2 * k, true);
     pos += 2 * entry.count;
-    far[entry.observer_height_m] = profile;
+    (entry.beyond_m > 100000 ? farStrip : farMesh)[entry.observer_height_m] = profile;
   }
-  return { header, levels, far, siteHeight: levels.near.heights[(levels.near.n * levels.near.n - 1) / 2] };
+  return { header, levels, farMesh, farStrip, siteHeight: levels.near.heights[(levels.near.n * levels.near.n - 1) / 2] };
 }
 
 // A grid point x m east and y m north of the site, at height h above the
@@ -123,12 +130,14 @@ export function buildLevel(level, heights, draw, siteHeight) {
   return { position, normal, index: new Uint32Array(index), enu };
 }
 
-// All three grids, finest last.
+// All five grids, coarsest first. Each leans toward the one before it near its edge.
 export function buildTerrain(terrain) {
-  const { wide, middle, near } = terrain.levels;
-  const hWide = blendedHeights(wide, DRAW.wide, null);
-  const hMiddle = blendedHeights(middle, DRAW.middle, { level: wide, heights: hWide });
-  const hNear = blendedHeights(near, DRAW.near, { level: middle, heights: hMiddle });
-  return [[wide, hWide, DRAW.wide], [middle, hMiddle, DRAW.middle], [near, hNear, DRAW.near]]
-    .map(([level, heights, draw]) => ({ name: level.name, heights, ...buildLevel(level, heights, draw, terrain.siteHeight) }));
+  const built = [];
+  let outer = null;
+  for (const name of Object.keys(DRAW)) {
+    const level = terrain.levels[name], heights = blendedHeights(level, DRAW[name], outer);
+    built.push({ name, heights, ...buildLevel(level, heights, DRAW[name], terrain.siteHeight) });
+    outer = { level, heights };
+  }
+  return built;
 }

@@ -17,9 +17,9 @@
       <div class="top" id="top">
         <p class="brand">Lunar Plan B</p>
         <p class="stretch" id="stretch-a"></p>
+        <p class="mode" id="mode" hidden>View: <select id="view-mode" aria-label="Kind of view"><option value="2d">panorama</option><option value="above">from above</option><option value="surface">stand on the surface</option></select></p>
         <button class="info" id="notes-toggle" type="button" aria-expanded="false" aria-controls="notes" aria-label="Notes about this view">i</button>
         <div class="notes" id="notes">
-          <p class="mode" id="mode" hidden>View: <select id="view-mode" aria-label="Kind of view"><option value="3d">eye level</option><option value="2d">panorama</option></select>. <span id="mode-note"></span></p>
           <p class="seen">Seen by <select id="seen-by" aria-label="Eye or camera"><option value="eye">the eye</option><option value="camera">a camera</option></select>. <span id="seen-note"></span></p>
           <p class="look" id="look" hidden>Looking toward <select id="look-at" aria-label="Direction of view"><option value="sun">the Sun</option><option value="earth">Earth</option><option value="0">north</option><option value="90">east</option><option value="180">south</option><option value="270">west</option><option value="free" hidden>where you turned it</option></select>. <span id="off-frame"></span></p>
           <p class="more"><span id="draw-note">Sun and Earth are drawn round, so they are widened by the same stretch.</span> <span id="light-a"></span></p>

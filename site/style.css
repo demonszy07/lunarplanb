@@ -35,8 +35,10 @@ svg text { font-family: Jost, system-ui, sans-serif; font-variant-numeric: tabul
 .stretch { grid-column: 2; grid-row: 1; text-align: right; }
 .info { display: none; }
 .notes { display: contents; }
-.mode, .seen, .look { grid-column: 1; max-width: 30em; }
+.mode { grid-column: 1; grid-row: 2; }
+.seen, .look { grid-column: 1; max-width: 30em; }
 .more { grid-column: 2; grid-row: 2 / span 3; text-align: right; }
+.mode select { color: var(--text); }
 .light-short { display: none; }
 .sentence { font-size: 18px; line-height: 1.45; max-width: 34em; }
 .sentence.small { font-size: 15px; }
@@ -119,7 +121,10 @@ a { color: inherit; }
   .notes { display: none; flex-basis: 100%; margin: 6px -16px 0; padding: 8px 16px 10px; background: #000;
     border-bottom: 1px solid var(--line); }
   .top.open .notes { display: block; }
-  .mode, .seen, .look, .more { max-width: none; text-align: left; margin-bottom: 6px; line-height: 1.45; }
+  /* the choice of view is a control, not a note: it keeps a line of its own under the first */
+  .mode { order: 3; flex-basis: 100%; font-size: 13px; margin-top: 2px; }
+  .notes { order: 4; }
+  .seen, .look, .more { max-width: none; text-align: left; margin-bottom: 6px; line-height: 1.45; }
   .sentence { font-size: 15px; line-height: 1.4; }
   .sentence.small { font-size: 14px; }
   .under { display: flex; flex-direction: column; gap: 6px; padding: 0 0 8px; }

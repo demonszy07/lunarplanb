@@ -349,6 +349,69 @@ export function drawOverlay(canvas, map) {
   drawCompass(ctx, width, height, 45, map.x, false);
 }
 
+// The marks over the view from above: the landing point, a thin arrow along
+// the ground toward the Sun and one toward Earth, and north. `map` comes from
+// View3D.draw: ground(east, north) is a place on the terrain, project() its
+// place in the picture. A dashed arrow means the body is behind terrain as
+// seen from the landing point.
+const POWER = "#F5D68A", LINK = "#6AA9FF";
+export function drawAboveMarks(canvas, map, view) {
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth, height = canvas.clientHeight;
+  canvas.width = Math.round(width * ratio);
+  canvas.height = Math.round(height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.font = "13px Jost, system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.lineWidth = 1.5;
+  const from = 0.03 * map.distance, reach = 0.26 * map.distance;
+  const along = (az, r0, r1) => {
+    const points = [];
+    for (let k = 0; k <= 20; k++) {
+      const r = r0 + (r1 - r0) * k / 20;
+      const p = map.project(map.ground(r * Math.sin(az * RAD), r * Math.cos(az * RAD)));
+      if (p) points.push(p);
+    }
+    return points;
+  };
+  const mark = (az, r1, colour, name, head, dashed) => {
+    const points = along(az, from, r1);
+    if (points.length < 2) return;
+    ctx.strokeStyle = ctx.fillStyle = colour;
+    ctx.setLineDash(dashed ? [4, 4] : []);
+    ctx.beginPath();
+    points.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const [x1, y1] = points[points.length - 1], [x0, y0] = points[points.length - 4] || points[0];
+    const length = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / length, uy = (y1 - y0) / length;
+    if (head) {                                  // a small open arrow head, pointing away from the landing point
+      ctx.beginPath();
+      ctx.moveTo(x1 - 8 * ux - 4 * uy, y1 - 8 * uy + 4 * ux);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x1 - 8 * ux + 4 * uy, y1 - 8 * uy - 4 * ux);
+      ctx.stroke();
+    }
+    ctx.textAlign = ux > 0.3 ? "left" : ux < -0.3 ? "right" : "center";
+    ctx.fillText(name, x1 + 9 * ux, y1 + 11 * uy);
+  };
+  mark(0, reach * 0.72, LABEL, "north", false, false);
+  mark(view.earthAz, reach, LINK, view.earthLink ? "Earth" : "Earth (behind terrain)", true, !view.earthLink);
+  mark(view.sunAz, reach, POWER, view.sunFraction > 0 ? "Sun" : "Sun (behind terrain)", true, !(view.sunFraction > 0));
+  // the landing point
+  const site = map.project(map.ground(0, 0));
+  if (site) {
+    ctx.strokeStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(site[0], site[1], 5, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(site[0] - 1, site[1] - 1, 2, 2);
+  }
+}
+
 // Where the Sun and Earth are when the window does not show them.
 // `window` has the azimuth at its middle (centre) and its width (windowDeg).
 export function offFrameNote(window, view) {

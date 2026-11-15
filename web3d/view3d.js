@@ -21,13 +21,17 @@ import {
   PerspectiveCamera, PlaneGeometry, Points, RedFormat, RepeatWrapping, Scene, ShaderMaterial, SphereGeometry, Texture, UnsignedByteType,
   UnsignedIntType, Vector3, WebGLRenderer, WebGLRenderTarget,
 } from "three";
-import { buildTerrain, parseTerrain } from "./terrain.js";
+import { buildTerrain, parseTerrain, heightAt, localPosition, DRAW, SHADOWED } from "./terrain.js";
 
 export { parseTerrain };
 
-export const FIELD_OF_VIEW = 70;          // degrees, side to side
-const HORIZON_AT = 0.6;                   // level sight line this far down the picture
-const NEAR = 1, FAR = 100000;             // metres
+export const FIELD_OF_VIEW = 70;          // degrees, side to side, standing on the surface
+const HORIZON_AT = 0.4;                   // standing on the surface: the level sight line this far down the picture
+const ABOVE_TILT = 35;                    // from above: degrees the camera looks down
+const ABOVE_FIELD = 40;                   // from above: degrees, top to bottom
+export const ABOVE_DISTANCE = { nearest: 800, start: 6000, farthest: 20000 };   // metres from the landing point
+const NEAR = 1, FAR = 100000;             // metres: the shadowed mesh as seen from the surface
+const OUTER_NEAR = 2000, OUTER_FAR = 600000;   // metres: the outer grid and the strip, drawn first with a range of their own
 const SKY = { stars: 70000, sun: 65000, earth: 60000, backdrop: 50000 };
 const RAD = Math.PI / 180;
 const SUN = [1, 0.973, 0.906];            // #FFF8E7
@@ -248,12 +252,15 @@ export class View3D {
     this.gl = this.renderer.getContext();
     this.camera = new PerspectiveCamera(40, 1, NEAR, FAR);
     this.sky = new Scene();
-    this.ground = new Scene();
-    this.eye = new Vector3(0, 2, 0);
+    this.ground = new Scene();                  // the mesh that casts and receives shadows (inside the wide grid)
+    this.farScene = new Scene();                // the outer grid and the strip beyond it: lit, no cast shadows
+    this.eye = new Vector3(0, 2, 0);            // where the panels are
+    this.cameraAt = new Vector3(0, 2, 0);       // where the picture is taken from
+    this.mode = "surface";
     this.size = { width: 0, height: 0, ratio: 0 };
 
     this.groundMaterial = shader(GROUND_VERTEX, GROUND_FRAGMENT, {
-      uLight: { value: new Vector3(0, 1, 0) }, uEye: { value: this.eye }, uColour: { value: new Vector3(1, 1, 1) },
+      uLight: { value: new Vector3(0, 1, 0) }, uEye: { value: this.cameraAt }, uColour: { value: new Vector3(1, 1, 1) },
       uStrength: { value: 1 }, uLevel: { value: 1 }, uShadows: { value: 0 }, uProbe: { value: 0 },
       uWide0: { value: null }, uWide1: { value: null }, uNear0: { value: null }, uNear1: { value: null },
       uShadowMatrix: { value: [new Matrix4(), new Matrix4(), new Matrix4(), new Matrix4()] },
@@ -262,7 +269,13 @@ export class View3D {
       uLightHalf: { value: [new Vector3(0, 1, 0), new Vector3(0, 1, 0)] },
       uLightRight: { value: new Vector3(1, 0, 0) }, uLightUp: { value: new Vector3(0, 1, 0) },
     });
+    // the outer grid: the same law and the same light, but no cast shadows
+    const shared = this.groundMaterial.uniforms;
+    this.farMaterial = shader(GROUND_VERTEX, GROUND_FRAGMENT, {
+      ...shared, uStrength: { value: 1 }, uShadows: { value: 0 }, uProbe: { value: 0 },
+    });
     this.meshes = [];
+    this.levels = [];
     // four shadow maps: [wide 0, wide 1, near 0, near 1]
     this.shadows = ["uWide0", "uWide1", "uNear0", "uNear1"].map((name, k) => {
       const size = k < 2 ? SHADOW_SIZE.wide : SHADOW_SIZE.near;
@@ -283,7 +296,7 @@ export class View3D {
     this.backdrop = new Mesh(new BufferGeometry(), this.backdropMaterial);
     this.backdrop.renderOrder = -1;
     this.backdrop.frustumCulled = false;
-    this.ground.add(this.backdrop);
+    this.farScene.add(this.backdrop);
     this.pictureSource = null;
 
     this.starMaterial = shader(STAR_VERTEX, STAR_FRAGMENT, { uRatio: { value: 1 } },
@@ -322,25 +335,28 @@ export class View3D {
 
   // The site's terrain (a parsed [site]_3d.bin).
   setTerrain(terrain) {
-    for (const mesh of this.meshes) { this.ground.remove(mesh); mesh.geometry.dispose(); }
-    this.meshes = buildTerrain(terrain).map((level) => {
+    for (const mesh of this.meshes) { mesh.parent.remove(mesh); mesh.geometry.dispose(); }
+    this.siteHeight = terrain.siteHeight;
+    this.levels = buildTerrain(terrain).map((level) => ({ ...level, grid: terrain.levels[level.name] }));
+    this.meshes = this.levels.map((level) => {
       const geometry = new BufferGeometry();
       geometry.setAttribute("position", new BufferAttribute(level.position, 3));
       geometry.setAttribute("normal", new BufferAttribute(level.normal, 3));
       geometry.setIndex(new BufferAttribute(level.index, 1));
-      const mesh = new Mesh(geometry, this.groundMaterial);
+      const shadowed = SHADOWED.includes(level.name);
+      const mesh = new Mesh(geometry, shadowed ? this.groundMaterial : this.farMaterial);
       mesh.frustumCulled = false;
-      this.ground.add(mesh);
+      (shadowed ? this.ground : this.farScene).add(mesh);
       return mesh;
     });
     this.triangles = this.meshes.reduce((sum, mesh) => sum + mesh.geometry.index.count / 3, 0);
     // points that bound the shadow maps: the whole wide grid, and what lies within a kilometre
-    const levels = this.meshes.map((mesh) => mesh.geometry.getAttribute("position").array);
-    this.widePoints = levels[0];
+    const points = Object.fromEntries(this.levels.map((level) => [level.name, level.position]));
+    this.widePoints = points.wide;
     const close = [];
-    for (const points of [levels[1], levels[2]]) {
-      for (let k = 0; k < points.length; k += 3) {
-        if (Math.abs(points[k]) <= NEAR_HALF && Math.abs(points[k + 2]) <= NEAR_HALF) close.push(points[k], points[k + 1], points[k + 2]);
+    for (const list of [points.middle, points.near]) {
+      for (let k = 0; k < list.length; k += 3) {
+        if (Math.abs(list[k]) <= NEAR_HALF && Math.abs(list[k + 2]) <= NEAR_HALF) close.push(list[k], list[k + 1], list[k + 2]);
       }
     }
     this.nearPoints = new Float32Array(close);
@@ -352,8 +368,7 @@ export class View3D {
     const key = [az.toFixed(3), el.toFixed(3), diameter.toFixed(3)].join();
     if (key === this.shadowKey) return;
     this.shadowKey = key;
-    const uniforms = this.groundMaterial.uniforms, e = new Float32Array(16), v = new Vector3();
-    this.backdrop.visible = false;
+    const uniforms = this.groundMaterial.uniforms, e = new Float32Array(16);
     this.ground.overrideMaterial = this.depthOnly;
     this.shadows.forEach((shadow, k) => {
       const camera = shadow.camera, half = (k % 2 ? 1 : -1) * HALF_DISC * diameter / 2;
@@ -398,12 +413,21 @@ export class View3D {
     uniforms.uLightRight.value.set(m[0], m[1], m[2]);
     uniforms.uLightUp.value.set(m[4], m[5], m[6]);
     this.ground.overrideMaterial = null;
-    this.backdrop.visible = true;
     this.renderer.setRenderTarget(null);
   }
 
-  // Panel height (the camera) and the skyline of the terrain beyond the mesh
-  // (720 elevations in degrees, from the terrain file) for the strip.
+  // The place on the ground x m east and y m north of the site, in scene
+  // coordinates, lifted by `lift` metres: for marks that lie on the terrain.
+  groundPoint(east, north, lift = 0, out = new Vector3()) {
+    const reach = Math.max(Math.abs(east), Math.abs(north));
+    let level = this.levels[0];
+    for (const candidate of this.levels) if (reach <= DRAW[candidate.name].half) level = candidate;      // the finest that holds it
+    const p = localPosition(east, north, heightAt(level.grid, level.heights, east, north), this.siteHeight);
+    return out.set(p[0], p[2] + lift, -p[1]);
+  }
+
+  // Panel height (the eye on the surface) and the skyline of the terrain beyond
+  // the outer grid (720 elevations in degrees, from the terrain file) for the strip.
   setSite(site, profile) {
     this.eye.set(0, site.observer_height_m, 0);
     const n = profile.length;
@@ -459,17 +483,38 @@ export class View3D {
   // Pixels per unit of tan(angle) at the middle of the picture.
   focal(width) { return (width / 2) / Math.tan(FIELD_OF_VIEW / 2 * RAD); }
 
-  // Aim a camera. The level sight line sits below the middle of the picture
-  // (a shifted lens, not a tilted camera), so upright things stay upright.
-  aim(camera, width, height, lookAz) {
-    const tall = 2 * HORIZON_AT * height;                     // the whole image the lens draws; we keep its upper part
-    camera.aspect = width / tall;
-    camera.fov = 2 * Math.atan((tall / 2) / this.focal(width)) / RAD;
-    camera.setViewOffset(width, tall, 0, 0, width, height);
-    camera.position.copy(this.eye);
-    camera.rotation.set(0, -lookAz * RAD, 0);
+  // Aim the camera for one of the two 3D views.
+  //   "surface": at panel height, 70 degrees wide. The level sight line sits
+  //              above the middle of the picture (a shifted lens, not a tilted
+  //              camera), so upright things stay upright.
+  //   "above":   circling the landing point, looking down at it by 35 degrees
+  //              from at.distance metres away; at.lookAz is the way it faces.
+  aim(at, width, height) {
+    const camera = this.camera;
+    this.mode = at.mode === "above" ? "above" : "surface";
+    if (this.mode === "above") {
+      const tilt = ABOVE_TILT * RAD, az = at.lookAz * RAD, d = at.distance;
+      camera.clearViewOffset();
+      camera.aspect = width / height;
+      camera.fov = ABOVE_FIELD;
+      camera.near = Math.max(20, d * 0.05);
+      camera.far = FAR;
+      camera.position.set(-Math.sin(az) * Math.cos(tilt) * d, Math.sin(tilt) * d, Math.cos(az) * Math.cos(tilt) * d);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+    } else {
+      const tall = 2 * (1 - HORIZON_AT) * height;             // the whole image the lens draws; we keep its lower part
+      camera.aspect = width / tall;
+      camera.fov = 2 * Math.atan((tall / 2) / this.focal(width)) / RAD;
+      camera.setViewOffset(width, tall, 0, tall - height, width, height);
+      camera.near = NEAR;
+      camera.far = FAR;
+      camera.position.copy(this.eye);
+      camera.rotation.set(0, -at.lookAz * RAD, 0);
+    }
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+    this.cameraAt.copy(camera.position);
   }
 
   // Put everything where it is at one moment. `at` holds:
@@ -486,6 +531,8 @@ export class View3D {
     light.uColour.value.set(...at.light.colour);
     light.uStrength.value = at.light.source === "none" ? 0 : at.light.strength;
     light.uLevel.value = at.light.level;
+    // the outer grid has no cast shadows: lit by the Sun wherever it faces it
+    this.farMaterial.uniforms.uStrength.value = at.light.source === "sun" ? 1 : light.uStrength.value;
     const casting = this.castShadows && at.light.source !== "none" && light.uStrength.value > 0;
     light.uShadows.value = casting ? 1 : 0;
     if (casting) this.castFrom(at.light.az, at.light.el, at.light.diameter);
@@ -565,32 +612,66 @@ export class View3D {
     this.starMaterial.uniforms.uRatio.value = this.size.ratio || 1;
   }
 
-  render(camera, target = null) {
-    this.renderer.setRenderTarget(target);
-    this.renderer.clear();
-    this.renderer.render(this.sky, camera);
+  // The ground in two passes, far first: the outer grid and the strip with a
+  // depth range of their own, then the shadowed mesh over them. This order is
+  // right as long as the camera stays over the shadowed mesh, which it does.
+  groundPasses(camera, override = null) {
+    const { near, far } = camera;
+    camera.near = OUTER_NEAR;
+    camera.far = OUTER_FAR;
+    camera.updateProjectionMatrix();
+    this.farScene.overrideMaterial = override;
+    this.renderer.clearDepth();
+    this.renderer.render(this.farScene, camera);
+    this.farScene.overrideMaterial = null;
+    camera.near = near;
+    camera.far = far;
+    camera.updateProjectionMatrix();
+    this.ground.overrideMaterial = override;
     this.renderer.clearDepth();
     this.renderer.render(this.ground, camera);
-    if (target) return;
+    this.ground.overrideMaterial = null;
+  }
+
+  render(camera) {
+    const above = this.mode === "above";
+    this.backdrop.visible = !above;             // the strip stands around the eye on the surface
+    this.renderer.setRenderTarget(null);
+    this.renderer.clear();
+    if (!above) this.renderer.render(this.sky, camera);      // from above no sky is in the picture
+    this.groundPasses(camera);
+    this.backdrop.visible = true;
+    if (above) return;
     // the skyline over the finished picture
-    this.ground.overrideMaterial = this.white;
     this.renderer.setRenderTarget(this.mask);
     this.renderer.clear();
-    this.renderer.render(this.ground, camera);
-    this.ground.overrideMaterial = null;
+    this.groundPasses(camera, this.white);
     this.renderer.setRenderTarget(null);
     this.renderer.render(this.edge, camera);
   }
 
-  // Draw one picture. Returns how azimuths map to x, for the direction labels.
+  // Where a point of the scene lands in the picture, in CSS pixels, or null behind the camera.
+  project(point, width, height) {
+    const p = point.clone().project(this.camera);
+    return p.z > 1 || p.z < -1 ? null : [(p.x + 1) / 2 * width, (1 - p.y) / 2 * height];
+  }
+
+  // Draw one picture. Returns what the labels over it need: for the view from
+  // the surface how azimuths map to x; for the view from above, project().
   draw(at, width, height, ratio) {
     this.resize(width, height, ratio);
     this.place(at, width);
-    this.aim(this.camera, width, height, at.lookAz);
+    this.aim(at, width, height);
     this.render(this.camera);
-    const f = this.focal(width), lookAz = at.lookAz;
+    const lookAz = at.lookAz;
+    if (this.mode === "above") {
+      return { mode: "above", lookAz, distance: at.distance,
+               project: (point) => this.project(point, width, height),
+               ground: (east, north, lift) => this.groundPoint(east, north, lift) };
+    }
+    const f = this.focal(width);
     return {
-      lookAz, windowDeg: FIELD_OF_VIEW,
+      mode: "surface", lookAz, windowDeg: FIELD_OF_VIEW,
       x: (az) => {
         const offset = ((az - lookAz + 180) % 360 + 360) % 360 - 180;
         return Math.abs(offset) > 80 ? null : width / 2 + f * Math.tan(offset * RAD);
@@ -629,12 +710,7 @@ export class View3D {
       this.renderer.setRenderTarget(this.probe);
       this.renderer.clear();
       this.renderer.render(this.sky, camera);
-      if (withGround) {
-        this.renderer.clearDepth();
-        this.ground.overrideMaterial = this.black;
-        this.renderer.render(this.ground, camera);
-        this.ground.overrideMaterial = null;
-      }
+      if (withGround) this.groundPasses(camera, this.black);
       const pixels = new Uint8Array(size * size * 4);
       this.renderer.readRenderTargetPixels(this.probe, 0, 0, size, size, pixels);
       let lit = 0;
