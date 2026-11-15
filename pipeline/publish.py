@@ -19,7 +19,7 @@ import sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 FIRST_LOAD = ["index.html", "style.css", "js/app.js", "js/sky.js", "js/visibility.js", "js/plan.js",
-              "js/scene.js", "js/flightplan.js", "fonts/jost-latin-400-normal.woff2",
+              "js/scene.js", "js/flightplan.js", "js/datefield.js", "fonts/jost-latin-400-normal.woff2",
               "fonts/jost-latin-500-normal.woff2", "data/sky.bin", "data/sites/site01.json",
               "data/sites/site01_view.bin"]
 

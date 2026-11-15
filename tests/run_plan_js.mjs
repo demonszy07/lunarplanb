@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { gaps, changes, untilChange, countdownText, formatMet, formatUtc, parseUtc, planB, siteFile, verdict } from "../site/js/plan.js";
 import { earthPhase } from "../site/js/sky.js";
 import { lommelSeeliger } from "../site/js/scene.js";
+import { edit, toPattern, snap } from "../site/js/datefield.js";
 
 const flags = [1, 1, 0, 0, 0, 1, 0, 1, 1, 1];
 assert.deepEqual(gaps(flags, 10), [{ start: 2, hours: 3 }, { start: 6, hours: 1 }]);
@@ -38,6 +39,29 @@ for (const wrong of ["", "tomorrow", "01/03/2027", "2027-02-30 00:00", "2027-13-
   assert.ok(Number.isNaN(parseUtc(wrong)), wrong);
 }
 assert.equal(formatUtc(parseUtc("202703011830")), "2027-03-01 18:30 UTC");
+
+// the landing time box: digits change, the marks between them stay, the caret steps over them
+const V = "2027-03-01 00:00";
+assert.deepEqual(edit(V, 5, 5, "deleteContentBackward"), { value: "2020-03-01 00:00", caret: 3 });   // Backspace after "-"
+assert.deepEqual(edit(V, 4, 4, "deleteContentForward"), { value: "2027-03-01 00:00", caret: 6 });    // Delete before "-": the month's 0
+assert.deepEqual(edit(V, 6, 6, "deleteContentForward"), { value: "2027-00-01 00:00", caret: 8 });
+assert.deepEqual(edit(V, 3, 3, "insertText", "8"), { value: "2028-03-01 00:00", caret: 5 });        // over the "-" after the year
+assert.deepEqual(edit(V, 8, 8, "insertText", "15"), { value: "2027-03-15 00:00", caret: 11 });
+assert.deepEqual(edit(V, 10, 10, "insertText", "6"), { value: "2027-03-01 60:00", caret: 12 });     // the space is skipped
+assert.equal(edit(V, 2, 2, "insertText", "x"), null);                                                // letters do nothing
+assert.deepEqual(edit(V, 4, 4, "insertText", "-"), { value: V, caret: 5 });                         // typing the mark steps over it
+assert.deepEqual(edit(V, 0, 16, "deleteContentBackward"), { value: "0000-00-00 00:00", caret: 0 });  // all selected: digits to 0
+assert.deepEqual(edit(V, 0, 16, "insertText", "2028-11-30 06:00"), { value: "2028-11-30 06:00", caret: 16 });
+assert.deepEqual(edit(V, 0, 16, "insertFromPaste", "202811300600"), { value: "2028-11-30 06:00", caret: 16 });
+assert.deepEqual(edit(V, 0, 0, "insertText", "2028113006"), { value: "2028-11-30 06:00", caret: 16 });   // read as a whole date
+assert.deepEqual(edit(V, 0, 0, "insertText", "2028"), { value: "2028-03-01 00:00", caret: 5 });
+assert.deepEqual(edit(V, 15, 15, "insertText", "59"), { value: "2027-03-01 00:05", caret: 16 });   // only the first fits: stops at the end
+assert.equal(edit(V, 0, 0, "deleteContentBackward"), null);
+assert.equal(edit(V, 16, 16, "deleteContentForward"), null);
+assert.equal(edit(V, 3, 3, "historyUndo"), null);
+for (let p = 0; p <= 16; p++) assert.ok(![4, 7, 10, 13].includes(snap(p)));                          // never right before a mark
+assert.equal(toPattern("2027-03-01T07:30Z"), "2027-03-01 07:30");
+assert.equal(toPattern("05/04/2027 1 pm"), "0504-20-27 10:00");
 
 const a = { site: "site01", landingMs: Date.parse("2027-03-01T00:00:00Z"), days: 10, height: 2 };
 assert.equal(planB(a, "week").landingMs - a.landingMs, 168 * 3600000);

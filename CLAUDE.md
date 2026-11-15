@@ -111,10 +111,20 @@ more than seven terrain sites.
   1. Mons Mouton plateau, 2028-04-06 00:00, B at another site: Site 7; MET 025 (Sun 3.1 deg).
   2. Mons Mouton plateau, 2028-11-30 00:00, B one week later; MET 077 (Sun 3.85 deg).
   3. Malapert massif, 2027-01-26 00:00, B one week later; MET 006 (Sun 3.2 deg), a trade-off.
-  The page has no deep links (state in the address); not added because of the freeze.
-- Sizes now: first screen 312 kB on disk, 244 kB compressed; real sky 46 kB / 40 kB;
-  3D 1002 kB / 584 kB (three.js bundle 560 kB / 142 kB, terrain file 442 kB, not
-  compressible); everything 1359 kB / 868 kB.
+  Each has a link in README (address parameters, see below).
+- After the freeze, at the user's request (15 Nov):
+  - The date box: always "YYYY-MM-DD HH:MM" UTC; typing changes digits only (Backspace and
+    Delete set a digit to 0, the marks stay, the caret steps over them); a click or tap opens
+    our own calendar (days, hours 00-23, minutes :00 :15 :30 :45, Done), never the browser's
+    local format. On a touch screen no keyboard comes up. Code: site/js/datefield.js.
+  - Address parameters ?site=&date=&days=&panels=&b=&met=&view= open a plan, a moment and a
+    view (b: day | week | lunarday | a site id; view: panorama | above | surface; the 3D views
+    only where the speed check passes). Values that do not fit are ignored.
+  - Checked in tests/check_controls.cjs (desktop and touch phone) and tests/run_plan_js.mjs.
+    Screenshots: docs/date_calendar_desktop.png, docs/date_calendar_phone.png.
+- Sizes now: first screen 330 kB on disk, 251 kB compressed (datefield.js added); real sky
+  46 kB / 40 kB; 3D 1002 kB / 584 kB (three.js bundle 560 kB / 142 kB, terrain file 442 kB,
+  not compressible).
 - Screenshots: docs/final_above_desktop.png, docs/final_above_phone.png,
   docs/final_panorama_desktop.png, docs/final_surface_desktop.png.
 - Still to do before submission: the GitHub Pages second address (see "Before submission").

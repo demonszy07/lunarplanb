@@ -99,6 +99,58 @@ async function desktop(browser, base) {
   out.dateDayDown = await page.inputValue("#a-date");
   await type("2027-03-01 00:00");
 
+  // the date box keeps its marks: Backspace and Delete change digits only, the caret steps over the marks
+  const caret = () => page.evaluate(() => document.getElementById("a-date").selectionStart);
+  await page.click("#a-date");
+  await page.evaluate(() => document.getElementById("a-date").setSelectionRange(5, 5));
+  await page.keyboard.press("Backspace");
+  out.maskBackspace = { value: await page.inputValue("#a-date"), caret: await caret() };
+  await page.keyboard.type("7");
+  out.maskRetype = { value: await page.inputValue("#a-date"), caret: await caret() };
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Delete");
+  await page.keyboard.type("04x");
+  out.maskDelete = { value: await page.inputValue("#a-date"), caret: await caret() };
+  await page.evaluate(() => document.getElementById("a-date").setSelectionRange(11, 11));
+  await page.keyboard.press("ArrowLeft");
+  out.maskLeft = await caret();
+  await page.keyboard.press("ArrowRight");
+  out.maskRight = await caret();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Delete");
+  out.maskClearAll = await page.inputValue("#a-date");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  // with no date that can be read, the calendar opens at the first month of the sky table
+  await page.click("#a-date");
+  out.calendarNoDate = await page.textContent("#pick-month");
+  await page.keyboard.press("Escape");
+  await type("2027-03-01 00:00");
+  // the calendar: a click opens it, a day and an hour are picked and taken at once, the page follows
+  await page.click("#a-date");
+  out.calendar = { open: await page.locator("#date-pick").isVisible(), month: await page.textContent("#pick-month") };
+  await page.click('#date-pick button[aria-label="2027-03-15"]');
+  await page.click('#date-pick button[aria-label="06 hours UTC"]');
+  await page.click('#date-pick button[aria-label="30 minutes"]');
+  await page.waitForTimeout(250);
+  out.calendar.picked = { value: await page.inputValue("#a-date"), whenA: await page.textContent("#when-a"),
+                          stillOpen: await page.locator("#date-pick").isVisible() };
+  await page.click('#date-pick button[aria-label="Next month"]');
+  out.calendar.next = await page.textContent("#pick-month");
+  await page.mouse.click(1200, 300);                  // a click outside closes it
+  await page.waitForTimeout(250);
+  out.calendar.closedOutside = !(await page.locator("#date-pick").isVisible());
+  await page.click("#a-date");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  out.calendar.closedEscape = !(await page.locator("#date-pick").isVisible());
+  // the calendar never goes before the table: in January 2026 "previous month" is off
+  await type("2026-01-10 00:00");
+  await page.click("#a-date");
+  out.calendar.januaryPrevOff = await page.locator('#date-pick button[aria-label="Previous month"]').isDisabled();
+  await page.keyboard.press("Escape");
+  await type("2027-03-01 00:00");
+
   // the strip under the views: a click jumps, a drag runs the time
   const strip = await box(page, "overview");
   const y = strip.y + strip.h / 2;
@@ -162,6 +214,28 @@ async function phone(browser, base) {
   await waitMet(page, 96);
   out.stripTap = { met: await met(page), marker: await markerHours(page, n) };
 
+  // a tap on the date box opens the calendar and brings up no keyboard
+  await page.tap("#a-date");
+  await page.waitForTimeout(200);
+  const pickBox = await page.locator("#date-pick").boundingBox();
+  out.calendar = { open: await page.locator("#date-pick").isVisible(),
+                   inputMode: await page.evaluate(() => document.getElementById("a-date").inputMode),
+                   inside: pickBox.x >= 0 && pickBox.x + pickBox.width <= 360 && pickBox.y >= 0 && pickBox.y + pickBox.height <= 740 };
+  await page.tap('#date-pick button[aria-label="2027-03-04"]');
+  await page.tap('#date-pick button[aria-label="18 hours UTC"]');
+  await page.waitForTimeout(250);
+  out.calendar.picked = { value: await page.inputValue("#a-date"), whenA: (await page.textContent("#when-a")).slice(0, 20) };
+  await page.tap('#date-pick button[aria-label="Close the calendar"]');
+  await page.waitForTimeout(200);
+  out.calendar.closed = !(await page.locator("#date-pick").isVisible());
+  await page.tap("#a-date");
+  await page.tap('#date-pick button[aria-label="2027-03-01"]');
+  await page.tap('#date-pick button[aria-label="00 hours UTC"]');
+  await page.tap('#date-pick button[aria-label="Close the calendar"]');
+  await page.waitForTimeout(250);
+  await page.touchscreen.tap(await stripX(page, 96, n), y);
+  await waitMet(page, 96);
+
   // a finger dragged along the strip
   const cdp = await context.newCDPSession(page);
   const touch = (type, x) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
@@ -194,11 +268,44 @@ async function phone(browser, base) {
   return out;
 }
 
+// A plan, a moment and a view from the address.
+async function address(browser, base) {
+  const out = {};
+  const read = (page) => page.evaluate(() => ({
+    site: document.getElementById("a-site").value, date: document.getElementById("a-date").value,
+    days: document.getElementById("a-days").value, panels: document.getElementById("a-height").value,
+    b: document.getElementById("b-choice").value, bSite: document.getElementById("b-site").value,
+    met: Number(document.documentElement.dataset.met), view: document.documentElement.dataset.view,
+    verdict: document.getElementById("verdict").textContent }));
+  const open = async (query, opts) => {
+    const page = await browser.newPage(opts || { viewport: { width: 1440, height: 900 } });
+    await page.goto(base + query);
+    await page.waitForSelector("html[data-ready]", { timeout: 20000 });
+    await page.waitForSelector("html[data-view3d]", { timeout: 120000 });
+    await page.waitForTimeout(400);
+    return page;
+  };
+  let page = await open("?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above&3d=force");
+  out.demo1 = await read(page);
+  await page.close();
+  page = await open("?site=malapert&date=2027-01-26T00:00&days=10&panels=2&b=week&met=6&view=above",
+    { viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
+  out.demo3Phone = await read(page);                   // this browser draws 3D too slowly: the panorama stays
+  await page.close();
+  page = await open("?site=nowhere&date=tomorrow&days=99&panels=3&b=never&met=-4&view=sideways");
+  out.nonsense = await read(page);                     // nothing fits: the opening plan
+  await page.close();
+  page = await open("?site=haworth&days=3&panels=5&met=500");
+  out.partial = await read(page);                      // what is given is taken; the time stops at the end of the stay
+  await page.close();
+  return out;
+}
+
 (async () => {
   const server = await serve();
   const base = `http://127.0.0.1:${server.address().port}/`;
   const browser = await chromium.launch();
-  const result = { desktop: await desktop(browser, base), phone: await phone(browser, base) };
+  const result = { desktop: await desktop(browser, base), phone: await phone(browser, base), address: await address(browser, base) };
   await browser.close();
   server.close();
   process.stdout.write(JSON.stringify(result, null, 1));

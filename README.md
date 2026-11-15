@@ -26,7 +26,8 @@ Every number comes from one calculation (a Python reference, matched by the brow
 
 ## Using the page
 
-- The plan is a sentence. Every underlined word with a small triangle can be changed. The landing time is typed as `2027-03-01 00:00` (24-hour clock, UTC); in that box the up and down keys step the part under the caret.
+- The plan is a sentence. Every underlined word with a small triangle can be changed. The landing time always reads `2027-03-01 00:00` (24-hour clock, UTC). A click or tap on it opens a calendar with the hours; it can also be typed, and typing changes only the digits (the marks between them stay, and the caret steps over them). In that box the up and down keys step the part under the caret.
+- The address can open the page at a plan, a moment and a view, for example `?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above`. `site` is a site id (see Sites); `date` the landing time, UTC; `days` 1 to 60; `panels` 2 or 5; `b` is `day`, `week` or `lunarday` (one day, one week or 29.5 days later) or a site id (at that site); `met` the hour since landing; `view` is `panorama`, `above` or `surface` (the 3D views only where the device passes the speed check below). A value that does not fit is left out.
 - Time is the scroll position of the flight plan. The strip under the views shows the whole stay for both plans: tap it to jump to a moment, drag along it to run the time. A tap on an hour of the flight plan brings that hour to the cursor.
 - Arrow keys left and right move the time 1 hour, with Shift 1 day; Home and End go to landing and to the end of the stay. While a box of the sentence has the focus the arrow keys edit that box; Escape, or a click on the view or the flight plan, hands them back to time.
 - "View:" over the view of plan A chooses how to see the site:
@@ -39,13 +40,19 @@ Every number comes from one calculation (a Python reference, matched by the brow
 
 ## Three moments to try
 
-Each one: set plan A's sentence as given (the days stay at 10 and the panels at 2 m), set plan B's choice, move the time to the given MET (tap the strip, or Shift and right arrow for whole days, then the right arrow for hours), and pick "View: from above". In all three the Sun stands 3 to 4 degrees above plan A's site, high for the south pole, so the shadows of crater rims run long and sharp.
+Each link opens the page at that plan, that moment and the view from above. By hand: set plan A's sentence as given (the days stay at 10 and the panels at 2 m), set plan B's choice, move the time to the given MET (tap the strip, or Shift and right arrow for whole days, then the right arrow for hours), and pick "View: from above". In all three the Sun stands 3 to 4 degrees above plan A's site, high for the south pole, so the shadows of crater rims run long and sharp.
 
 | | Plan A: land at, on (UTC) | Plan B | Time | What it shows |
 |---|---|---|---|---|
 | 1 | Mons Mouton plateau, 2028-04-06 00:00 | at another site: Site 7, peak near Shackleton | MET 025:00 | The whole difference a site makes. A: Sun 99 % of the stay and Earth in view all 240 hours. B: no Sun and no Earth for the whole stay. Verdict: "Plan A is better on both counts: 99 points more sunlight and 240 more hours of Earth contact." Sun 3.1 degrees up at A. |
 | 2 | Mons Mouton plateau, 2028-11-30 00:00 | one week later | MET 077:00 | The same place, one week apart. A: Sun 99.8 %, Earth 228 h. B: Sun 30.4 %, Earth 185 h. "Plan A is better on both counts: 69 points more sunlight and 43 more hours of Earth contact." Sun 3.85 degrees up at A. |
 | 3 | Malapert massif, 2027-01-26 00:00 | one week later | MET 006:00 | A trade-off. A gets sunlight (68 % against 0 %), B gets Earth (232 h against 98 h): one week later the Sun has gone below Malapert's horizon but Earth has risen. Sun 3.2 degrees up at A. |
+
+Links:
+
+1. https://lunarplanb.vercel.app/?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above
+2. https://lunarplanb.vercel.app/?site=mouton&date=2028-11-30T00:00&days=10&panels=2&b=week&met=77&view=above
+3. https://lunarplanb.vercel.app/?site=malapert&date=2027-01-26T00:00&days=10&panels=2&b=week&met=6&view=above
 
 These were found by scanning all seven sites, every landing day from 2027 to 2029 and every choice of plan B with the Python reference, for hours when plan A has the whole Sun and Earth in view, plan B has neither, the Sun stands high at A, and the two plans differ most over the whole stay.
 
@@ -165,7 +172,7 @@ The terrain files listed under Sources go in `data/raw/` (the two large maps) an
 
 The 3D views are the one part with a build step. Their source is `web3d/`; `npm install` then `npm run build3d` (esbuild) writes `site/js/view3d.bundle.js`, which holds three.js with only the parts used. That file is committed, so publishing needs no install.
 
-Sizes: the first screen (the panorama and the flight plan) is 312 kB, 244 kB compressed. The real sky loads after it (46 kB, 40 kB compressed), then the 3D views (1,002 kB, 584 kB compressed: the three.js bundle 560 kB / 142 kB and the terrain file of the site 442 kB, which does not compress).
+Sizes: the first screen (the panorama and the flight plan) is 330 kB, 251 kB compressed. The real sky loads after it (46 kB, 40 kB compressed), then the 3D views (1,002 kB, 584 kB compressed: the three.js bundle 560 kB / 142 kB and the terrain file of the site 442 kB, which does not compress).
 
 ## Sites
 

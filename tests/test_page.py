@@ -143,6 +143,36 @@ def test_one_cursor_for_keys_typing_taps_and_drags(capsys):
     assert d["dateWrong"]["whenA"] == "2027-04-05 00:00 UTC"       # the last good plan stays on screen
     assert d["dateBack"] == {"invalid": "false", "tip": d["tip"], "whenA": "2027-03-01 00:00 UTC"}
     assert d["dateHourUp"] == "2027-03-01 01:00" and d["dateDayDown"] == "2027-02-28 01:00"
+    # the marks of the date stay: Backspace after "-" changes the year's last digit, the caret steps over marks
+    assert d["maskBackspace"] == {"value": "2020-03-01 00:00", "caret": 3}
+    assert d["maskRetype"] == {"value": "2027-03-01 00:00", "caret": 5}
+    # two Deletes set the month's digits to 0 and step past them; "04" then fills the day; "x" does nothing
+    assert d["maskDelete"] == {"value": "2027-00-04 00:00", "caret": 11}
+    assert d["maskLeft"] == 9 and d["maskRight"] == 11                        # from 11, left lands before the day's last digit; right steps over the space
+    assert d["maskClearAll"] == "0000-00-00 00:00"
+    assert d["calendarNoDate"] == "January 2026"
+    # the calendar: opens on a click, a day, an hour and a minute are taken at once, closes outside or with Escape
+    cal = d["calendar"]
+    assert cal["open"] and cal["month"] == "March 2027"
+    assert cal["picked"] == {"value": "2027-03-15 06:30", "whenA": "2027-03-15 06:30 UTC", "stillOpen": True}
+    assert cal["next"] == "April 2027" and cal["closedOutside"] and cal["closedEscape"] and cal["januaryPrevOff"]
+    # on a phone a tap opens it without a keyboard, inside the screen
+    pc = p["calendar"]
+    assert pc["open"] and pc["inputMode"] == "none" and pc["inside"] and pc["closed"]
+    # the cursor stood at MET 096:00, so plan A's clock reads landing plus 96 hours
+    assert pc["picked"] == {"value": "2027-03-04 18:00", "whenA": "2027-03-08 18:00 UTC"}
+    # a plan, a moment and a view from the address
+    ad = both["address"]
+    assert ad["demo1"] == {"site": "mouton", "date": "2028-04-06 00:00", "days": "10", "panels": "2", "b": "site",
+                           "bSite": "site07", "met": 25, "view": "above",
+                           "verdict": "Plan A is better on both counts: 99 points more sunlight and 240 more hours of Earth contact."}
+    assert {k: ad["demo3Phone"][k] for k in ("site", "date", "b", "met", "view")} == {
+        "site": "malapert", "date": "2027-01-26 00:00", "b": "week", "met": 6, "view": "2d"}
+    assert ad["demo3Phone"]["verdict"].startswith("A trade-off: plan A gets more sunlight (68 % against 0 %)")
+    assert {k: ad["nonsense"][k] for k in ("site", "date", "days", "panels", "b", "met", "view")} == {
+        "site": "site01", "date": "2027-03-01 00:00", "days": "10", "panels": "2", "b": "week", "met": 0, "view": "2d"}
+    assert {k: ad["partial"][k] for k in ("site", "date", "days", "panels", "met")} == {
+        "site": "haworth", "date": "2027-03-01 00:00", "days": "3", "panels": "5", "met": 72}
 
     # 6: one cursor. The strip, the keys, the wheel, a click on an hour and a drag of the sheet
     assert d["stripClick"]["met"] == 120 and abs(d["stripClick"]["marker"] - 120) < 0.5

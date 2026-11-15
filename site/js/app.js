@@ -7,6 +7,7 @@ import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, for
 import { drawScene, drawOverlay, drawAboveMarks, backCaption, offFrameNote, parseView, lighting, shadeGround, earthPictureSize } from "./scene.js";
 import { discFraction } from "./visibility.js";
 import { drawHead, drawTrack, drawOverview, stripWidth, PX_PER_HOUR, TRACK_TOP } from "./flightplan.js";
+import { dateField } from "./datefield.js";
 
 const $ = (id) => document.getElementById(id);
 const narrow = window.matchMedia("(max-width: 899px)");
@@ -38,7 +39,8 @@ fillSelect($("a-site"), SITES, "site01");
 fillSelect($("b-choice"), B_CHOICES, "week");
 fillSelect($("b-site"), SITES, "malapert");
 
-// The landing time is typed as text, always shown as "2027-03-01 00:00" (UTC).
+// The landing time is typed as text or picked in a calendar, always shown as
+// "2027-03-01 00:00" (UTC); see datefield.js.
 const TIP = $("tip").textContent;
 function readDate() {
   const field = $("a-date"), ms = parseUtc(field.value);
@@ -211,6 +213,10 @@ async function start3d() {
     $("mode").hidden = false;
     fitFields();
     flag("view3d", "on");
+    if (three.wanted) {                                 // a view asked for in the address
+      $("view-mode").value = three.wanted;
+      $("view-mode").dispatchEvent(new Event("change"));
+    }
     // for the checks in tests/check_3d.cjs
     window.lunar3d = { view, three, moment: () => moment3d(state.runs[0], state.met),
                        measureSun: () => three.view.measureSun(moment3d(state.runs[0], state.met)) };
@@ -683,6 +689,7 @@ $("a-date").addEventListener("keydown", (event) => {
   else date.setUTCHours(date.getUTCHours() + step);
   field.value = formatUtc(date.getTime()).slice(0, 16);
   field.setSelectionRange(at, at);
+  dateBox.taken();
   showPlans();
 });
 
@@ -724,10 +731,45 @@ strip.addEventListener("pointerdown", (event) => {
 strip.addEventListener("pointermove", (event) => { if (scrubbing) scrub(event); });
 for (const type of ["pointerup", "pointercancel"]) strip.addEventListener(type, () => { scrubbing = false; });
 
+// ---- a plan, a moment and a view from the address ----------------------------
+// ?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above
+//   site    one of the site ids (site01, site04, site07, site11, malapert, mouton, haworth)
+//   date    landing time, UTC, e.g. 2028-04-06T00:00
+//   days    1 to 60;  panels  2 or 5 (metres)
+//   b       day, week or lunarday (one day, one week, 29.5 days later), or a site id (at that site)
+//   met     hours since landing, where the cursor stands
+//   view    panorama, above or surface (the 3D views only where the device passes the speed check)
+// A value that does not fit is left out and the default stays.
+const asked = new URLSearchParams(location.search);
+function fromAddress() {
+  const ids = SITES.map(([id]) => id), choices = B_CHOICES.map(([id]) => id);
+  const site = asked.get("site"), date = asked.get("date"), days = Number(asked.get("days"));
+  const panels = asked.get("panels"), b = asked.get("b"), met = Number(asked.get("met"));
+  if (ids.includes(site)) $("a-site").value = site;
+  if (date && Number.isFinite(parseUtc(date))) $("a-date").value = formatUtc(parseUtc(date)).slice(0, 16);
+  if (Number.isInteger(days) && days >= 1 && days <= 60) $("a-days").value = String(days);
+  if (panels === "2" || panels === "5") $("a-height").value = panels;
+  if (choices.includes(b) && b !== "site") $("b-choice").value = b;
+  else if (ids.includes(b)) { $("b-choice").value = "site"; $("b-site").value = b; }
+  if (asked.has("met") && Number.isInteger(met) && met >= 0) {
+    state.met = met;                                    // showPlans() scrolls the flight plan to it
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  }
+  const view = { panorama: "2d", "2d": "2d", above: "above", surface: "surface" }[asked.get("view")];
+  if (view && view !== "2d") three.wanted = view;      // set once the 3D views are offered
+}
+
+// the landing time box: typing changes digits only; a click opens the calendar
+const dateBox = dateField($("a-date"), () => showPlans(), () => state.sky
+  ? [state.sky.epochMs, state.sky.epochMs + state.sky.lastHour * 3600000]
+  : [Date.UTC(2026, 0, 1), Date.UTC(2030, 11, 31, 23)]);
+
 async function start() {
   try {
     const [buffer] = await Promise.all([load("data/sky.bin", "binary"), document.fonts.load("15px Jost")]);
     state.sky = parseSky(buffer);
+    fromAddress();
+    dateBox.taken();
     fitFields();
     await showPlans();
   } catch (error) {
