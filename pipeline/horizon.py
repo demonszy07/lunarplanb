@@ -3,7 +3,7 @@
 For 720 azimuths (clockwise from north, N 0, E 90) this gives the elevation
 angle of the terrain horizon and the distance of the terrain point that sets it.
 
-Conventions (see CLAUDE.md):
+Conventions (see docs/project-rules.md):
   frame MOON_ME, east-positive longitude, sphere R = 1737.4 km, no refraction.
   tan(e) = (rt cos d - ro) / (rt sin d)
     ro = radius of the observer, rt = radius of the terrain point,

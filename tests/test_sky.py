@@ -59,7 +59,7 @@ def test_parallax_lowers_a_nearby_body():
 
 @needs_raw
 def test_known_rows_site_1():
-    # Rows written in CLAUDE.md for 2026-11-14 00:00 UT. The Earth azimuth
+    # Rows written in docs/project-rules.md for 2026-11-14 00:00 UT. The Earth azimuth
     # differs from that row by 0.004 deg; the tolerance says so openly.
     table = ephemeris.load(RAW)
     r = sky.sky(table, ephemeris.hours_since_epoch(dt.datetime(2026, 11, 14)), -89.45, 222.69)

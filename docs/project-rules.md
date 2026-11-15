@@ -1,7 +1,6 @@
-# CLAUDE.md
+# Project rules
 
-Reply to the user in Turkish. Code, comments, UI text and README are in English.
-Explain Git and deployment steps in plain words; the user is new to them.
+Code, comments, UI text and README are in English.
 
 ## Project
 NASA Space Apps 2026, challenge "Lunar Landing Site Navigator". Solo entry.
@@ -69,7 +68,8 @@ more than seven terrain sites.
 ## Before submission
 - The first-stage jury is in Türkiye, where vercel.app does not open without a VPN.
   When the repo is made public, add GitHub Pages as a second address:
-  restore .github/workflows/pages.yml from commit fef2a9d, have the user set
+  restore .github/workflows/pages.yml from commit d30c8a5 ("Add the first page and publish it
+  with GitHub Pages"; it was fef2a9d before the commit messages were rewritten on 15 Nov), have the user set
   Settings > Pages > Source to "GitHub Actions", check that the github.io address
   opens without a VPN, then put both addresses in the README.
 
