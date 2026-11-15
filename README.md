@@ -1,10 +1,12 @@
 # LunaricB
 
+**Live page:**
+- https://demonszy07.github.io/lunarplanb/ (GitHub Pages; opens from Türkiye without a VPN)
+- https://lunarplanb.vercel.app/
+
 One screen that compares two landing plans for the lunar south pole: where the Sun and Earth sit relative to the real terrain horizon, and what that means for power and direct-to-Earth contact.
 
 NASA Space Apps 2026, challenge "Lunar Landing Site Navigator". Made during the event, 14 and 15 November 2026.
-
-**Live page: https://lunarplanb.vercel.app/**
 
 ![The page on a desktop: the view from plan A's site from above, the plan sentence, plan B's view and the flight plan](docs/final_above_desktop.png)
 
@@ -48,11 +50,14 @@ Each link opens the page at that plan, that moment and the view from above. By h
 | 2 | Mons Mouton plateau, 2028-11-30 00:00 | one week later | MET 077:00 | The same place, one week apart. A: Sun 99.8 %, Earth 228 h. B: Sun 30.4 %, Earth 185 h. "Plan A is better on both counts: 69 points more sunlight and 43 more hours of Earth contact." Sun 3.85 degrees up at A. |
 | 3 | Malapert massif, 2027-01-26 00:00 | one week later | MET 006:00 | A trade-off. A gets sunlight (68 % against 0 %), B gets Earth (232 h against 98 h): one week later the Sun has gone below Malapert's horizon but Earth has risen. Sun 3.2 degrees up at A. |
 
-Links:
+Links (the same on both addresses):
 
-1. https://lunarplanb.vercel.app/?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above
-2. https://lunarplanb.vercel.app/?site=mouton&date=2028-11-30T00:00&days=10&panels=2&b=week&met=77&view=above
-3. https://lunarplanb.vercel.app/?site=malapert&date=2027-01-26T00:00&days=10&panels=2&b=week&met=6&view=above
+1. https://demonszy07.github.io/lunarplanb/?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above
+   (or https://lunarplanb.vercel.app/?site=mouton&date=2028-04-06T00:00&days=10&panels=2&b=site07&met=25&view=above)
+2. https://demonszy07.github.io/lunarplanb/?site=mouton&date=2028-11-30T00:00&days=10&panels=2&b=week&met=77&view=above
+   (or https://lunarplanb.vercel.app/?site=mouton&date=2028-11-30T00:00&days=10&panels=2&b=week&met=77&view=above)
+3. https://demonszy07.github.io/lunarplanb/?site=malapert&date=2027-01-26T00:00&days=10&panels=2&b=week&met=6&view=above
+   (or https://lunarplanb.vercel.app/?site=malapert&date=2027-01-26T00:00&days=10&panels=2&b=week&met=6&view=above)
 
 These were found by scanning all seven sites, every landing day from 2027 to 2029 and every choice of plan B with the Python reference, for hours when plan A has the whole Sun and Earth in view, plan B has neither, the Sun stands high at A, and the two plans differ most over the whole stay.
 
@@ -166,7 +171,7 @@ python pipeline/publish.py        # gathers site/ and data/sites/ into dist/ (wh
 python -m pytest tests
 ```
 
-To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. The page is published with Vercel: on every push to `main` it runs `python3 pipeline/publish.py dist` and serves `dist/` (settings in `vercel.json`).
+To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. The page is published twice from `main`, the same files both times: `python3 pipeline/publish.py dist` gathers them into `dist/`. GitHub Pages serves them from https://demonszy07.github.io/lunarplanb/ (workflow in `.github/workflows/pages.yml`); Vercel serves them from https://lunarplanb.vercel.app/ (settings in `vercel.json`). Every path in the page is relative, so it works from both.
 
 The terrain files listed under Sources go in `data/raw/` (the two large maps) and `data/raw/pgda78/` (the 5 m site maps); they are not stored in this repository. The JavaScript tests need Node.js; the page tests also need Playwright.
 

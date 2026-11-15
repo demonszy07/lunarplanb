@@ -15,6 +15,8 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
 - Commit after every working step; the message says what changed and why.
 - If a result disagrees with a reference, report it as it is. Never tune to match.
 - Before adding a feature, check the cut order in the plan.
+- Commit messages carry no AI attribution lines (no "Co-Authored-By: Claude", no
+  "Claude-Session"); set by the user on 15 Nov, when those lines were removed from history.
 
 ## Method
 - Frame MOON_ME, east-positive longitude, sphere R = 1737.4 km, no refraction.
@@ -66,6 +68,11 @@ Decorative spinning globe, link budget, battery sizing, thermal model, chat assi
 more than seven terrain sites.
 
 ## Before submission
+- Done on 15 Nov: history rewritten without the AI lines (dates and content unchanged, checked
+  commit by commit); this file moved from CLAUDE.md; only main left on GitHub; the Pages
+  workflow restored; both addresses at the top of README. Left to the user: make the repo
+  public, then Settings > Pages > Source "GitHub Actions", then run the "Publish site"
+  workflow once (Actions tab, Run workflow) and open https://demonszy07.github.io/lunarplanb/.
 - The first-stage jury is in Türkiye, where vercel.app does not open without a VPN.
   When the repo is made public, add GitHub Pages as a second address:
   restore .github/workflows/pages.yml from commit d30c8a5 ("Add the first page and publish it
@@ -90,7 +97,7 @@ more than seven terrain sites.
 - One cursor: the scroll position of the flight plan is the only clock. Keys, strip, taps and
   drags all scroll the page (scrollToMet in app.js); never keep a second time variable.
   tests/check_controls.cjs checks this on a desktop and on a touch phone.
-- Stage 4 (3D) is published (15 Nov, main = the preview branch). The page opens with the
+- Stage 4 (3D) is published (15 Nov). Only the main branch exists now; work goes to main. The page opens with the
   panorama; "View:" offers "from above" and "stand on the surface" when the speed check passes.
 - FEATURES ARE FROZEN (user, 15 Nov). No new features. Only fixes of what exists, the README
   and the submission steps below. Cut and written under README "Next steps": the date strip
@@ -131,7 +138,7 @@ more than seven terrain sites.
   not compressible).
 - Screenshots: docs/final_above_desktop.png, docs/final_above_phone.png,
   docs/final_panorama_desktop.png, docs/final_surface_desktop.png.
-- Still to do before submission: the GitHub Pages second address (see "Before submission").
+- Before submission: see "Before submission" (what is done, what the user does).
 
 ### 3D rework of 15 Nov (done and published)
 The user's verdict on the first 3D: it looked like the old panorama and the terrain was blurry.
