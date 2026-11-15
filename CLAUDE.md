@@ -59,7 +59,8 @@ Everything in this repo is created during the event (14-15 Nov 2026). Cite every
   the "i" button or under the view.
 - Size: the first screen (2D view and flight plan) stays near 300 kB compressed (gzip).
   No hard limit on the total; 3D and the real sky load in the background. Always report
-  compressed and uncompressed sizes. Weak devices must not stutter (see the 40 ms rule).
+  compressed and uncompressed sizes. Weak devices must not stutter (see the speed check:
+  60 ms median over 30 pictures, set by the user on 15 Nov; it was 40 ms).
 
 ## Do not build
 Decorative spinning globe, link budget, battery sizing, thermal model, chat assistant,
@@ -89,47 +90,47 @@ more than seven terrain sites.
 - One cursor: the scroll position of the flight plan is the only clock. Keys, strip, taps and
   drags all scroll the page (scrollToMet in app.js); never keep a second time variable.
   tests/check_controls.cjs checks this on a desktop and on a touch phone.
-- Stage 4 (3D) is built and tested on branch claude/relaxed-darwin-2ebtlf, reworked on 15 Nov
-  after the user looked at the preview on a phone (see below). It is NOT on main (the live
-  page): the user looks at the preview first and then says "yayınla". Speed on a real graphics
-  card could still not be measured in the build environment (software rendering, about one
-  second per picture, so the tests see the fallback to 2D unless "?3d=force" is used).
+- Stage 4 (3D) is published (15 Nov, main = the preview branch). The page opens with the
+  panorama; "View:" offers "from above" and "stand on the surface" when the speed check passes.
+- FEATURES ARE FROZEN (user, 15 Nov). No new features. Only fixes of what exists, the README
+  and the submission steps below. Cut and written under README "Next steps": the date strip
+  and the check against PGDA's illumination products.
+- Last changes before the freeze (15 Nov):
+  - Speed check: after the load event, the data and an idle moment; 2 pictures not counted,
+    then 30 timed, one per screen refresh; 3D stays at a median of 60 ms or less; stopped
+    after 5 if all five take over 180 ms. Reason: the old check (5 pictures right after the
+    data, 40 ms) switched 3D off on the user's PC although 3D ran smoothly there with
+    "?3d=force". Not yet confirmed by the user that the new check keeps 3D on that PC.
+  - In the 3D views on a wide screen the plan sentence sits under the picture; on a phone it
+    stays on it over a 68 % black box. The sentence's words are refitted when the view changes.
+- README is final: what it does, live link, three moments to try, how it works, validation
+  numbers (Horizons, stars, browser against Python, Barker 2021 with Case C, 3D checks),
+  Limits, Next steps, run steps, sites, sources.
+- Demo moments (also in README "Three moments to try"), found with the Python reference over
+  all sites, every landing day 2027-2029 and every plan B choice; days 10, panels 2 m:
+  1. Mons Mouton plateau, 2028-04-06 00:00, B at another site: Site 7; MET 025 (Sun 3.1 deg).
+  2. Mons Mouton plateau, 2028-11-30 00:00, B one week later; MET 077 (Sun 3.85 deg).
+  3. Malapert massif, 2027-01-26 00:00, B one week later; MET 006 (Sun 3.2 deg), a trade-off.
+  The page has no deep links (state in the address); not added because of the freeze.
 - Sizes now: first screen 312 kB on disk, 244 kB compressed; real sky 46 kB / 40 kB;
   3D 1002 kB / 584 kB (three.js bundle 560 kB / 142 kB, terrain file 442 kB, not
   compressible); everything 1359 kB / 868 kB.
+- Screenshots: docs/final_above_desktop.png, docs/final_above_phone.png,
+  docs/final_panorama_desktop.png, docs/final_surface_desktop.png.
+- Still to do before submission: the GitHub Pages second address (see "Before submission").
 
-### 3D rework of 15 Nov (done, on the preview branch, waiting for the user's look)
+### 3D rework of 15 Nov (done and published)
 The user's verdict on the first 3D: it looked like the old panorama and the terrain was blurry.
-- [x] 1. Blur. Cause: not the pixel ratio (canvas already 2x, capped at 2) and not antialiasing
-      (already on, 4 samples), but the data: 160 m cells beyond 2 km and a strip painted at one
-      degree per column beyond 20 km. Fix: two more grids (80 m to 8 km, 960 m to 120 km).
-      Before and after of the same moment: docs/blur_before_after_phone.png.
-- [x] 2. "from above": camera circles the landing point 35 degrees up, 6 km away to start
-      (0.8 to 20 km); drag turns, wheel or two fingers zoom; landing point, Sun and Earth arrows
-      on the ground (dashed when behind terrain), north. Same mesh, light and cast shadows.
-- [x] 3. "stand on the surface": level sight line 40 % down the picture.
-- [x] 4. The page opens with the panorama; View: panorama / from above / stand on the surface.
-      All numbers come from 2D. README Limits names the coarser mesh and the largest measured
-      difference of the Sun's share (0.117).
-- [x] 5. Touch: sideways turns, two fingers zoom, up and down still scrolls the page (checked
-      in tests/check_3d.cjs on a touch phone).
-Screenshots: docs/above_desktop.png, docs/above_phone.png, docs/surface_desktop.png, docs/surface_phone.png.
-Choices made without asking:
-- The middle (20 m) grid was not enlarged. Instead an 80 m grid to 8 km and a 960 m grid to
-  120 km were added: 442 kB per site, was 231 kB. From above, the ground then continues to
-  the horizon instead of ending at 20 km.
-- From above the camera faces north to start and does not follow the Sun, so the shadows are
-  seen to move as the cursor moves.
-- Over a 3D picture the words stand on black: a bar along the top with one line and the choice
-  of view, the other notes behind "i" on every screen size, a black box behind the plan
-  sentence. On narrow screens "View:" has a second line of its own (it is a control, not a note).
-- The far terrain is real mesh now, so the check moment "cut by terrain 42 km away" reads
-  0.728 in 3D against 0.614 in 2D (before, the strip was cut along the 2D skyline and agreed
-  by construction). Reported as is.
-- The 80 m grid is drawn to 7.68 km although heights are stored to 8 km (edges must sit on
-  grid lines of both grids); the 9 km check ridge lies just outside it. Left as is, not moved
-  to make the check look better.
-Open: speed on real hardware; a wider 5 m grid; shadows finer than two halves of the disc.
+- Blur: the cause was the data (160 m cells beyond 2 km, a strip painted at one degree per
+  column beyond 20 km), not the pixel ratio (2x) or antialiasing (on). Two grids were added
+  (80 m to 8 km, 960 m to 120 km). Before and after: docs/blur_before_after_phone.png.
+- "from above": camera circles the landing point 35 degrees up, 6 km away to start (0.8 to
+  20 km); drag turns, wheel or two fingers zoom; landing point, Sun and Earth arrows on the
+  ground (dashed when behind terrain), north. Faces north to start, so shadows are seen to move.
+- "stand on the surface": level sight line 40 % down the picture.
+- Touch: sideways turns, two fingers zoom, up and down still scrolls the page.
+- The middle (20 m) grid was not enlarged; the far terrain is real mesh now, so the check
+  moment "cut by terrain 42 km away" reads 0.728 in 3D against 0.614 (reported as is).
 
 ### Stage 4 as built
 - Terrain: pipeline/build_3d.py writes data/sites/[id]_3d.bin: five grids (5 m to 250 m, 20 m
@@ -142,8 +143,8 @@ Open: speed on real hardware; a wider 5 m grid; shadows finer than two halves of
 - Light: Lommel-Seeliger shader; shadow maps in two steps (inside the wide grid, and 1 km
   around the site), each from the lower and upper half of the Sun's disc, depth compared on
   the receiver's plane. Outer grid: lit, no shadows.
-- Loading: after the real sky. No WebGL2, median of the first five pictures (from above, new
-  shadows each) over 40 ms, or a lost context: 3D is removed and the panorama stays.
-  "?3d=off" and "?3d=force" override, for checks. Draws only when something changes.
+- Loading: after the real sky, then the speed check (see Status). No WebGL2, a median over
+  60 ms, or a lost context: 3D is not offered and the panorama stays. "?3d=off" and
+  "?3d=force" override, for checks. Draws only when something changes.
 - Check: tests/test_view3d.py writes data/view3d_check.txt (shadows against rays, the Sun's
   share 3D beside 2D, in view / not in view 6 of 6). tests/shadow_reference.py is the ray reference.
