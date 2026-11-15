@@ -199,6 +199,23 @@ const { serve } = require("./shoot.cjs");
   out.noWebgl2 = { ...(await data(plain)),
                    bundleFetched: fetched.some((u) => u.includes("view3d")), terrainFetched: fetched.some((u) => u.endsWith("_3d.bin")),
                    modeShown: await plain.locator("#view-mode").isVisible() };
+  // a device that draws fast: the clock is made to advance 5 ms between two readings
+  const quick = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await quick.addInitScript(() => {
+    let fake = 0;
+    performance.now = () => (fake += 5);
+  });
+  await quick.goto(base);
+  await quick.waitForSelector("html[data-view3d]", { timeout: 120000 });
+  out.fastDevice = { ...(await data(quick)), modeShown: await quick.locator("#view-mode").isVisible() };
+  await quick.close();
+  // and this browser as it is (software graphics)
+  const slow = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await slow.goto(base);
+  await slow.waitForSelector("html[data-view3d]", { timeout: 120000 });
+  out.slowDevice = { ...(await data(slow)), modeShown: await slow.locator("#view-mode").isVisible() };
+  await slow.close();
+
   // "?3d=off" does the same on request
   await plain.goto(base + "?3d=off");
   await plain.waitForSelector("html[data-view3d]", { timeout: 60000 });

@@ -680,18 +680,16 @@ export class View3D {
     };
   }
 
-  // Time a few full pictures, in milliseconds each. readPixels makes the
-  // graphics card finish before the clock is read.
-  time(at, width, height, ratio, frames = 5) {
-    const times = [], pixel = new Uint8Array(4);
-    for (let k = 0; k < frames; k++) {
-      this.shadowKey = "";                      // as when the time is being dragged: new shadows every picture
-      const start = performance.now();
-      this.draw(at, width, height, ratio);
-      this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixel);
-      times.push(performance.now() - start);
-    }
-    return times;
+  // Time one full picture, in milliseconds, with new shadows as when the
+  // time is being dragged (the heaviest case). readPixels makes the graphics
+  // card finish before the clock is read.
+  timeOne(at, width, height, ratio) {
+    const pixel = new Uint8Array(4);
+    this.shadowKey = "";
+    const start = performance.now();
+    this.draw(at, width, height, ratio);
+    this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixel);
+    return performance.now() - start;
   }
 
   // Check: the share of the Sun's disc that the 3D scene leaves in view,

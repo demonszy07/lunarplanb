@@ -126,9 +126,37 @@ async function realSky() {
 
 // ---- the 3D view ------------------------------------------------------------
 // Loaded last. The page is complete without it: with no WebGL2, or when the
-// first pictures take longer than 40 ms each, it is taken out again and the
-// panorama stays. "?3d=off" and "?3d=force" in the address override this, for checks.
-const SLOW_MS = 40;
+// device draws it too slowly, it is taken out again and the panorama stays.
+// "?3d=off" and "?3d=force" in the address override this, for checks.
+//
+// The speed check waits until the page and all its data have arrived and the
+// browser is idle, draws two pictures that are not counted (the graphics card
+// prepares its programs then), and then times 30 pictures, one per screen
+// refresh so the page stays responsive meanwhile. 3D stays if the median is
+// 60 ms or less. A device whose first five pictures all take more than three
+// times that is stopped there, so a weak device is not held up for long.
+const SLOW_MS = 60, FRAMES = 30, WARM_UP = 2, CLEARLY_SLOW = 3 * SLOW_MS;
+const nextFrame = () => new Promise((done) => requestAnimationFrame(() => done()));
+const pageLoaded = () => new Promise((done) => {
+  if (document.readyState === "complete") done();
+  else window.addEventListener("load", () => done(), { once: true });
+});
+const idle = () => new Promise((done) => {
+  if (window.requestIdleCallback) requestIdleCallback(() => done(), { timeout: 1500 });
+  else setTimeout(done, 200);
+});
+
+async function timePictures(view, at, width, height, ratio) {
+  for (let k = 0; k < WARM_UP; k++) { view.timeOne(at, width, height, ratio); await nextFrame(); }
+  const times = [];
+  for (let k = 0; k < FRAMES; k++) {
+    times.push(view.timeOne(at, width, height, ratio));
+    if (times.length === 5 && times.every((ms) => ms > CLEARLY_SLOW)) break;
+    await nextFrame();
+  }
+  const sorted = [...times].sort((x, y) => x - y);
+  return { median: sorted[Math.floor(sorted.length / 2)], count: times.length };
+}
 // The page opens with the panorama ("2d"). The two 3D views: "above" circles the
 // landing point, "surface" stands on it. Each view remembers where it looks.
 const three = { view: null, lib: null, terrains: new Map(), terrain: null, terrainSite: "", siteRef: null,
@@ -149,17 +177,21 @@ async function start3d() {
     const view = new three.lib.View3D($("scene-3d"));
     if (state.stars) view.setStars(state.stars);
     if (state.earthImage) view.setEarthPicture(state.earthImage);
-    // Slow devices stay 2D: the median of the first five pictures decides.
-    // They are drawn while the canvas is still hidden, so nothing flickers.
+    // The pictures of the speed check are drawn while the 3D canvas is still
+    // hidden, so nothing flickers.
     const [a] = state.runs, siteId = a.plan.site, canvas = $("scene-a");
     const terrain = await terrain3d(siteId);
     view.setTerrain(terrain);
     view.setSite(a.site, terrain.farStrip[a.plan.height]);
     three.distance = three.lib.ABOVE_DISTANCE.start;
-    const times = view.time(moment3d(a, state.met, terrain, "above"), canvas.clientWidth, canvas.clientHeight, pixelRatio3d())
-      .sort((x, y) => x - y);
-    const median = times[Math.floor(times.length / 2)];
+    await pageLoaded();
+    await idle();
+    flag("view3dCheck", "timing");
+    const speed = await timePictures(view, moment3d(a, state.met, terrain, "above"),
+      canvas.clientWidth, canvas.clientHeight, pixelRatio3d());
+    const median = speed.median;
     flag("frameMs", median.toFixed(1));
+    flag("frames", String(speed.count));
     if (median > SLOW_MS && wish !== "force") {
       view.dispose();
       return flag("view3d", "slow");

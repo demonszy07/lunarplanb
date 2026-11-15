@@ -113,6 +113,14 @@ def test_3d_view_against_rays_and_against_the_2d_numbers(capsys):
     assert got["noWebgl2"]["view3d"] == "no-webgl2" and got["noWebgl2"]["view"] == "2d"
     assert not got["noWebgl2"]["bundleFetched"] and not got["noWebgl2"]["terrainFetched"] and not got["noWebgl2"]["modeShown"]
     assert got["switchedOff"] == "off"
+    # a device that draws a picture in 5 ms (a clock made to run that way): 3D stays,
+    # after 30 timed pictures, and the page still opens with the panorama
+    fast = got["fastDevice"]
+    assert fast["view3d"] == "on" and fast["frames"] == "30" and float(fast["frameMs"]) <= 60
+    assert fast["view"] == "2d" and fast["modeShown"]
+    # the software graphics of the test browser are too slow: stopped after five pictures, panorama only
+    slow = got["slowDevice"]
+    assert slow["view3d"] == "slow" and slow["frames"] == "5" and float(slow["frameMs"]) > 180 and not slow["modeShown"]
     # fingers on the view from above: sideways turns it, two fingers move the camera,
     # up and down still scrolls the page (the time)
     touch = got["touch"]
@@ -166,7 +174,8 @@ def test_3d_view_against_rays_and_against_the_2d_numbers(capsys):
     largest = max(abs(m["fraction"] - m["fraction2d"]) for m in got["moments"])
     lines += ["", f"In view / not in view agrees in {sum(agree)} of {len(agree)} moments. "
                   f"Largest difference of the share: {largest:.3f}.",
-              f"First pictures in the test browser (software graphics): median {page['start']['frameMs']} ms each, "
+              f"Speed check in the test browser (software graphics): median {page['start']['frameMs']} ms over "
+              f"{page['start']['frames']} pictures, "
               f"{page['triangles']:.0f} triangles."]
     text = "\n".join(lines) + "\n"
     with open(os.path.join(ROOT, "data", "view3d_check.txt"), "w") as f:
