@@ -86,6 +86,48 @@ const { serve } = require("./shoot.cjs");
                ...window.lunar3d.measureSun() };
     })) });
   }
+  // another site: its terrain is fetched, the panorama stands in meanwhile, then 3D again
+  const seen = [];
+  page.on("response", (r) => seen.push(r.url().replace(base, "")));
+  await page.selectOption("#a-site", "malapert");
+  await page.waitForFunction(() => document.documentElement.dataset.view === "3d" &&
+    window.lunar3d.moment().view === window.lunar3d.moment().view && document.getElementById("when-a").textContent !== "", null, { timeout: 60000 });
+  await page.waitForFunction(() => window.lunar3d.view.triangles > 0 && document.documentElement.dataset.view === "3d");
+  await page.waitForTimeout(500);
+  out.page.otherSite = { files: seen.filter((u) => u.endsWith("_3d.bin")), view: (await data()).view,
+                         eye: await page.evaluate(() => window.lunar3d.view.eye.y) };
+  await page.selectOption("#a-height", "5");
+  await page.waitForFunction(() => window.lunar3d.view.eye.y === 5, null, { timeout: 60000 });
+  out.page.panelsAt5m = { eye: await page.evaluate(() => window.lunar3d.view.eye.y), view: (await data()).view };
+  // nothing is drawn while nothing changes
+  const frames = () => page.evaluate(() => window.lunar3d.view.renderer.info.render.frame);
+  const idleFrom = await frames();
+  await page.waitForTimeout(1000);
+  out.page.framesWhileIdle = (await frames()) - idleFrom;
+  await goTo(1);
+  await page.waitForTimeout(300);
+  out.page.framesForOneHour = (await frames()) - idleFrom;
+  await page.close();
+
+  // a browser without WebGL2: the 3D code is not even downloaded
+  const plain = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await plain.addInitScript(() => {
+    const real = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (kind, ...rest) { return kind === "webgl2" ? null : real.call(this, kind, ...rest); };
+  });
+  const fetched = [];
+  plain.on("response", (r) => fetched.push(r.url().replace(base, "")));
+  await plain.goto(base);
+  await plain.waitForSelector("html[data-view3d]", { timeout: 60000 });
+  await plain.waitForTimeout(300);
+  out.noWebgl2 = { ...(await plain.evaluate(() => ({ ...document.documentElement.dataset }))),
+                   bundleFetched: fetched.some((u) => u.includes("view3d")), terrainFetched: fetched.some((u) => u.endsWith("_3d.bin")),
+                   modeShown: await plain.locator("#view-mode").isVisible() };
+  // "?3d=off" does the same on request
+  await plain.goto(base + "?3d=off");
+  await plain.waitForSelector("html[data-view3d]", { timeout: 60000 });
+  out.switchedOff = await plain.evaluate(() => document.documentElement.dataset.view3d);
+
   await browser.close();
   server.close();
   process.stdout.write(JSON.stringify(out));

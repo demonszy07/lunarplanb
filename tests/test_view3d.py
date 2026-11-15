@@ -91,6 +91,15 @@ def test_3d_view_against_rays_and_against_the_2d_numbers(capsys):
     assert drag["choice"] == "free" and drag["lookAz"] == pytest.approx(90 - 200 * 70 / drag["width"], abs=0.01)
     assert page["panorama"]["view"] == "2d" and page["panorama"]["canvasHidden"] and "stretched" in page["panorama"]["stretch"]
     assert page["again"]["view"] == "3d"
+    # another site brings its own terrain file; panels at 5 m raise the camera
+    assert page["otherSite"] == {"files": ["data/sites/malapert_3d.bin"], "view": "3d", "eye": 2}
+    assert page["panelsAt5m"] == {"eye": 5, "view": "3d"}
+    # nothing moves by itself: no picture while nothing changes, then a handful for one hour's step
+    assert page["framesWhileIdle"] == 0 and 0 < page["framesForOneHour"] <= 12
+    # without WebGL2 the page stays 2D and the 3D code is not downloaded
+    assert got["noWebgl2"]["view3d"] == "no-webgl2" and got["noWebgl2"]["view"] == "2d"
+    assert not got["noWebgl2"]["bundleFetched"] and not got["noWebgl2"]["terrainFetched"] and not got["noWebgl2"]["modeShown"]
+    assert got["switchedOff"] == "off"
 
     # ---- cast shadows against straight rays through the same grids ----
     surf = shadow_reference.surfaces(SITE_FILE)

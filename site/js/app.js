@@ -159,6 +159,14 @@ async function start3d() {
       view.dispose();
       return flag("view3d", "slow");
     }
+    // if the browser takes the graphics context away later, the panorama comes back
+    $("scene-3d").addEventListener("webglcontextlost", () => {
+      if (!three.view) return;
+      three.view = null;
+      $("mode").hidden = true;
+      flag("view3d", "lost");
+      showMoment(true);
+    });
     three.view = view;
     three.terrain = terrain;
     three.terrainSite = siteId;

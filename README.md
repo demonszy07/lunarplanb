@@ -14,6 +14,7 @@ python pipeline/ephemeris.py      # downloads the Horizons table to data/raw/
 python pipeline/sky.py            # writes site/data/sky.bin for the browser
 python pipeline/check_sky.py      # compares with direct Horizons queries
 python pipeline/build_sites.py    # writes data/sites/ (needs the terrain files, see the file)
+python pipeline/build_3d.py       # writes data/sites/[id]_3d.bin, the terrain of the 3D view (same terrain files)
 python pipeline/realsky.py        # writes site/data/stars.bin, earth.bin, earth.jpg (needs data/raw/sky/, see the file)
 python pipeline/check_stars.py    # checks the star positions against Horizons
 python tests/make_vectors.py      # writes tests/vectors.json from the Python reference
@@ -27,12 +28,15 @@ python -m pytest tests
 To look at the page on your own computer: `python pipeline/publish.py`, then `python -m http.server --directory dist` and open http://localhost:8000. The page is published with Vercel: on every push to `main` it runs `python3 pipeline/publish.py dist` and serves `dist/` (settings in `vercel.json`).
 
 The terrain files listed under Sources go in `data/raw/` (the two large maps) and `data/raw/pgda78/` (the 5 m site maps); they are not stored in this repository.
-The JavaScript tests need Node.js; the page test also needs Playwright.
+The JavaScript tests need Node.js; the page tests also need Playwright.
+
+The 3D view is the one part with a build step. Its source is `web3d/`; `npm install` then `npm run build3d` (esbuild) writes `site/js/view3d.bundle.js`, which holds three.js with only the parts used. That file is committed, so publishing needs no install.
 
 ## Using the page
 
 - The plan is a sentence. Every underlined word with a small triangle can be changed. The landing time is typed as `2027-03-01 00:00` (24-hour clock, UTC); in that box the up and down keys step the part under the caret.
 - Time is the scroll position of the flight plan. The strip under the views shows the whole stay for both plans: tap it to jump to a moment, drag along it to run the time. A tap on an hour of the flight plan brings that hour to the cursor.
+- When the device can draw it, view A is a 3D scene seen at eye level: 70 degrees wide, no vertical stretch, Sun and Earth at their true size. Drag it sideways to turn, or pick "Looking toward" (the Sun, Earth, north, east, south, west). "View: eye level / panorama" switches back to the 360 degree panorama. Plan B's view is always the panorama. The 3D view loads last; without WebGL2, or when the first five pictures take more than 40 ms each (median), it is removed again and the panorama stays. Adding `?3d=off` or `?3d=force` to the address overrides that choice.
 - Arrow keys left and right move the time 1 hour, with Shift 1 day; Home and End go to landing and to the end of the stay. While a box of the sentence has the focus the arrow keys edit that box; Escape, or a click on the view or the flight plan, hands them back to time.
 
 ## Sites
@@ -61,9 +65,35 @@ Ground heights in this table were read from `LDEM_80S_80MPP_ADJ.TIF` when the po
 - Earth link: counted when Earth's centre is above the terrain. No antenna, no ground stations on Earth, no link budget.
 - Mission metrics are sampled once per step (one hour by default), so durations and times to first sunset are known to one step.
 - The browser table is sampled every 3 hours and stored as 16-bit numbers; against the hourly table this adds at most 0.001 degrees. The Sun's distance is kept once a day (largest error 2,600 km of 150 million, which changes the Sun's apparent size by less than 0.00001 degrees).
-- The picture of the ground: slopes are lit by the Lommel-Seeliger law from which way they face, at one point per degree of azimuth and 0.2 degrees of elevation, blended between neighbours. The edge between light and shadow is softened by the width of the Sun's disc (0.53 degrees), which is physical; the blending is not, and it hides that the ground a few metres from the observer rests on a handful of 5 m terrain cells. Shadows that one hill casts on another are not computed, and the brightness of all the ground follows the share of the Sun seen from the site, so distant peaks that would still catch the Sun after local sunset go dark with it. When the Sun is down the ground is drawn by Earthlight with the exposure raised; the drawn brightness is a display choice, not the true ratio (about 1 to 10,000, see Sources), and it scales with the lit share of Earth's disc, which is a simplification of how Earth's brightness changes with phase. The picture is for orientation; the numbers do not use it.
+- The panorama's picture of the ground: slopes are lit by the Lommel-Seeliger law from which way they face, at one point per degree of azimuth and 0.2 degrees of elevation, blended between neighbours. The edge between light and shadow is softened by the width of the Sun's disc (0.53 degrees), which is physical; the blending is not, and it hides that the ground a few metres from the observer rests on a handful of 5 m terrain cells. Shadows that one hill casts on another are not computed, and the brightness of all the ground follows the share of the Sun seen from the site, so distant peaks that would still catch the Sun after local sunset go dark with it. When the Sun is down the ground is drawn by Earthlight with the exposure raised; the drawn brightness is a display choice, not the true ratio (about 1 to 10,000, see Sources), and it scales with the lit share of Earth's disc, which is a simplification of how Earth's brightness changes with phase. The picture is for orientation; the numbers do not use it.
+- The 3D view: its near terrain is coarser than the 2D pipeline's (5 m only within 250 m, then 20 m to 2 km, then 160 m), so the Sun can be cut a little differently than the numbers say (see the check above); the numbers always come from the 2D pipeline. Shadows inside the mesh are cast by the mesh; mountains beyond 20 km are not in it, so their effect is one number for the whole scene, the share of the Sun's disc above the far-only skyline as seen from the site, which dims all the near ground alike. That is wrong for ground far from the site that sees a different far skyline. A point is lit by 0, 1 or 2 halves of the Sun's disc; true partial light is finer. The strip of far mountains is the panorama's picture at one degree per column, so it is soft, and it follows the panorama's rule that all ground goes dark when the site loses the Sun. When the Sun is down for the site the 3D ground is drawn by Earthlight with the exposure raised, as in the panorama, even if peaks inside the mesh would still catch the Sun. The picture is for orientation; the numbers do not use it.
 - Stars: 2,887 stars of magnitude 5.5 and brighter at their catalogue places for the year 2000; their own motion since then (at most about 0.03 degrees for the nearest stars) and the aberration of light are left out. The Moon's orientation for the stars comes from the IAU series, good to about 0.005 degrees. Checked against Horizons with far planets standing in for stars, 72 comparisons: largest difference 0.008 degrees (`data/stars_check.txt`). "Seen by the eye" always shows the stars, as for an eye shaded from the Sun; "a camera" hides them whenever any part of the Sun is in view, a simple rule.
 - Earth's picture: NASA's cloud-free Blue Marble, 256 pixels wide, brightened for the screen; real Earth has clouds. It is turned to the point that faces the Moon's centre (the site sees up to 0.26 degrees more of one side), kept every 12 hours (within 0.07 degrees), and Earth's pole is taken where it was in 2000 (0.15 degrees off). The night side is black.
+
+## The 3D view: how it is built, and its check
+
+Terrain: for each site, three square height grids centred on it (`data/sites/[id]_3d.bin`, 231 kB): 40 km wide with a height every 160 m (from the 80 m map, mean of 2 x 2 samples), 4 km wide every 20 m (mean of 4 x 4 samples of the site's 5 m map) and 500 m wide every 5 m (that map itself). The Moon's curvature goes into the positions, not the heights: level ground 20 km away lies 115.1 m below the site's horizontal. The mesh has 214,856 triangles. Where two grids meet, the finer one leans toward the coarser one over 320 m (40 m for the innermost), so there is no step. Terrain beyond the mesh, out to 300 km, is a strip standing behind it, cut along the skyline that only that far terrain makes and painted with the panorama's lit-ground picture.
+
+Light: the Lommel-Seeliger law as in the panorama. Cast shadows come from shadow maps (Williams 1978) in two steps, one for the whole mesh (2048 x 2048, about 25 m by 2.4 m per texel) and one for the kilometre around the camera (1024 x 1024, about 2.5 m by 0.23 m), each drawn from the middle of the lower and of the upper half of the Sun's disc. The Sun is never more than about 1.5 degrees up here, so the ground runs almost along the light; depth is therefore compared on the receiving ground's own plane (receiver-plane depth bias), with an allowance of a quarter texel of that slope plus 0.25 m (2 m in the wide map). That allowance was chosen by comparing with straight rays through the same height grids (`tests/shadow_reference.py`); it is a numerical setting of the method, not a fit to the 2D results.
+
+Checks, all in `data/view3d_check.txt`, written by `tests/test_view3d.py`:
+
+- Shadows against straight rays, Site 1, three moments, counting only ground that faces the light: lit against dark at 0.6 to 0.8 % of the 40 km grid, 0.5 to 0.6 % between 240 m and 1 km from the site, 2.1 to 3.2 % between 1 and 1.6 km (served by the wide map).
+- The share of the Sun's disc left in view by the 3D scene, counted in pixels through a long lens (disc about 180 pixels wide), beside the 2D number. The moments were picked from the 2D numbers before the 3D view was measured:
+
+| Moment (Site 1, panels 2 m, UTC) | 2D | 3D | In view: 2D / 3D |
+|---|---|---|---|
+| Sun fully in view, 2027-03-01 00:00 | 1.000 | 1.000 | yes / yes |
+| Sun fully hidden, 2027-05-05 03:00 | 0.000 | 0.000 | no / no |
+| Partly cut by near terrain (0.4 km), 2027-03-04 00:00 | 0.591 | 0.624 | yes / yes |
+| Partly cut by far terrain (42 km), 2027-03-14 10:00 | 0.614 | 0.614 | yes / yes |
+| Just after sunset, 2027-03-18 04:00 | 0.000 | 0.000 | no / no |
+| Extra: partly cut by terrain 9 km away, 2027-06-13 11:00 | 0.469 | 0.586 | yes / yes |
+
+"In view / not in view" agrees in all six. The shares differ where the mesh is coarser than the 2D pipeline: the crest 0.4 km away is in the 20 m grid (2D uses 5 m), and the ridge 9 km away is in the 160 m grid (2D uses 80 m), which rounds it down by about 0.06 degrees. Nothing was adjusted. The far-terrain row agrees to three digits because the strip is cut along the 2D pipeline's own far skyline; it checks the projection, not the terrain.
+
+- The mesh built in the browser matches the Python reference to 0.18 mm, and the grids meet with no step (0.06 mm).
+- Speed could only be measured in the test browser, which draws with software and no graphics card: about 500 ms per picture there, so that browser correctly falls back to the panorama. No measurement on a real phone or laptop graphics card was possible in the build environment.
 
 ## Check against Barker et al. (2021)
 
@@ -93,6 +123,7 @@ What was not measured: the area average on the clones, which is the exact Case A
 - Map projection formulas: Snyder, J. P. (1987), "Map Projections: A Working Manual", USGS Professional Paper 1395, polar stereographic on a sphere.
 - Sites and their regions: Barker, M. K., et al. (2021), "Improved LOLA elevation maps for south pole landing sites: error estimates and their impact on illumination conditions", Planetary and Space Science 203, 105119, https://doi.org/10.1016/j.pss.2020.105119. Data: NASA GSFC Planetary Geodynamics Data Archive, https://pgda.gsfc.nasa.gov/products/78 (5 m tiles and `*_ROIs.tgz` shapefiles). Site numbering follows Mazarico, E., et al. (2011), "Illumination conditions of the lunar polar regions using LOLA topography", Icarus 211, 1066-1081, https://doi.org/10.1016/j.icarus.2010.10.030.
 - Typeface: Jost by indestructible type (Owen Earl), SIL Open Font License 1.1, https://github.com/indestructible-type/Jost. Latin subset, weights 400 and 500, taken from the `@fontsource/jost` package 5.3.0; licence text in `site/fonts/OFL.txt`.
+- 3D drawing: three.js r187 (MIT licence), https://threejs.org, https://github.com/mrdoob/three.js; bundled with esbuild 0.28.2 (MIT licence), https://esbuild.github.io. Shadow maps: Williams, L. (1978), "Casting curved shadows on curved surfaces", Computer Graphics (SIGGRAPH '78) 12(3), 270-274. Comparing depth on the receiver's plane: Isidoro, J. (2006), "Shadow Mapping: GPU-based Tips and Techniques", Game Developers Conference (cited from memory; the talk could not be opened from the build environment).
 - Near terrain: the 5 m/pixel site maps of the same PGDA product, https://pgda.gsfc.nasa.gov/products/78 (`Site01`, `Site04`, `Site07`, `Site11`, `Site20`, `Site23` and `Haworth`, files `*_final_adj_5mpp_surf.tif`), used for the first 5 km around each site.
 - Ground brightness: the Lommel-Seeliger law, I = mu0 / (mu0 + mu), as given in Hapke, B. (2012), "Theory of Reflectance and Emittance Spectroscopy", 2nd ed., Cambridge University Press.
 - Earthlight: Glenar, D. A., et al. (2019), "Earthshine as an illumination source at the Moon", Icarus 321, 841-856, https://doi.org/10.1016/j.icarus.2018.12.025 (preprint https://arxiv.org/abs/1904.00236): about 0.15 W/m2 on the Moon from the full Earth, roughly half reflected sunlight and half thermal emission, about 0.01 % of sunlight. Only the abstract was read for this project.

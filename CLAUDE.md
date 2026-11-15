@@ -89,37 +89,33 @@ more than seven terrain sites.
 - One cursor: the scroll position of the flight plan is the only clock. Keys, strip, taps and
   drags all scroll the page (scrollToMet in app.js); never keep a second time variable.
   tests/check_controls.cjs checks this on a desktop and on a touch phone.
-- Sizes now: first screen 293 kB on disk, 239 kB compressed; with the real sky 338 kB / 279 kB.
-- Not done: shadows cast by other hills.
+- Stage 4 (3D hero) is built and tested (15 Nov) on branch claude/relaxed-darwin-2ebtlf.
+  It is NOT on main (the live page) yet: frame time on a real graphics card could not be
+  measured in the build environment (software rendering only, about 500 ms per picture, so
+  the fallback to 2D is what the tests see). Put it on main when the user says so.
+- Sizes now: first screen 302 kB on disk, 242 kB compressed; real sky 46 kB / 40 kB;
+  3D view 790 kB / 373 kB (three.js bundle 558 kB / 141 kB, terrain file 231 kB, not
+  compressible); everything 1138 kB / 654 kB.
 
-### Stage 4, approved plan (start in a new session; do not re-ask for approval of these points)
-1. Terrain data: one file per site, [id]_3d.bin, three nested height grids centred on the
-   site: 40 x 40 km at 160 m (from the 80 m map); +-2 km at 20 m (averaged from the 5 m tile);
-   +-250 m at 5 m (the tile itself). The Moon's curvature goes into the vertex positions
-   (115 m drop at 20 km). About 230 kB per site.
-2. Scene: perspective camera at panel height, horizontal field of view 70 degrees, no vertical
-   stretch (say so on screen). Direction by dragging sideways or "Looking toward". Beyond
-   20 km a backdrop strip built from the 300 km skyline; stars as points from the same
-   catalogue; Earth as a sphere with the Blue Marble picture; Sun as a disc of true angular
-   size with a hard-edged flare. "View: [eye level / panorama]" switches back to 2D.
-   Plan B's view stays 2D.
-3. Light and shadow: directional light from the true Sun direction; a custom shader with the
-   Lommel-Seeliger law; shadow map in two steps (the whole 40 km, and the nearest 1 km).
-   Mountains beyond 20 km are not in the mesh: use the site's far-horizon profile and darken
-   all the near ground when the Sun is below it. That is an approximation; write it in Limits.
-4. Loading and fallback: three.js bundled with only the parts used (esbuild; the bundle is
-   committed so the host needs no build). It loads after the real sky. If the median frame
-   time in the first frames is over 40 ms, or WebGL2 is missing, remove 3D and stay 2D.
-   No continuous animation: draw only when the cursor or the view direction changes.
-5. Check: five moments (Sun fully in view, fully hidden, partly cut by near terrain, partly
-   cut by far terrain, just after sunset). For each, measure the visible share of the Sun's
-   disc in 3D (pixels) and put it beside the 2D number. "In view / not in view" must agree in
-   all five. The mesh (160 m, 20 m) and the 2D pipeline (80 m, 5 m) differ, so edge cases may
-   disagree: report as is, never tune to match.
-- Size decision for stage 4: no limit on the total. Keep the first screen near 300 kB
-  compressed; measure and report compressed and uncompressed sizes of the three.js bundle,
-  the terrain file and the total.
-- Cut order if time is short: second shadow step, then Earth as a sphere (reuse the painted
-  2D disc), then stars in 3D.
-- At the end of stage 4: commit and push, one screenshot, update this note, add three.js
-  (MIT) and anything else new to the README sources.
+### Stage 4 as built (the approved plan, with what came out)
+- Terrain: pipeline/build_3d.py writes data/sites/[id]_3d.bin (40 km at 160 m, 4 km at 20 m,
+  500 m at 5 m, plus the far-only skyline for panels at 2 m and 5 m). Curvature is in the
+  positions (115.1 m at 20 km). Needs the terrain files in data/raw/.
+- Scene: web3d/terrain.js (mesh, no drawing) and web3d/view3d.js (three.js). After a change
+  run "npm install" once and "npm run build3d"; the bundle site/js/view3d.bundle.js is committed.
+  Camera at panel height, 70 degrees wide, shifted lens (level sight line 60 % down), no vertical
+  stretch. Far strip cut along the far-only skyline. Stars as points, Earth as a sphere, Sun as
+  a true-size disc with the flare. The #3A3A3A skyline line is drawn in 3D too.
+- Light: Lommel-Seeliger shader; shadow maps in two steps (40 km, and 1 km around the camera),
+  each from the lower and upper half of the Sun's disc; far mountains dim all near ground by
+  the Sun's share above the far-only skyline (approximation, in README Limits).
+- Loading: after the real sky. No WebGL2, median of the first five pictures over 40 ms, or a
+  lost context: 3D is removed and the panorama stays. "?3d=off" and "?3d=force" override, for
+  checks. Draws only when the cursor, the direction or the plan changes.
+- Check: tests/test_view3d.py writes data/view3d_check.txt. In view / not in view agrees in
+  6 of 6 moments; shares differ where the mesh is coarser (0.624 against 0.591 for a crest
+  0.4 km away, 0.586 against 0.469 for a ridge 9 km away). Reported as is.
+- Nothing from the cut order was cut.
+- Open: a wider 5 m grid (the horizon at 2 m is often set 300 to 450 m away, outside the
+  500 m grid) would bring 3D closer to the 2D numbers at about 60 kB more per site; soft
+  shadows finer than two halves of the disc; the far strip is soft.
