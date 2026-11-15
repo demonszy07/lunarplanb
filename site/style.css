@@ -63,7 +63,8 @@ select:focus-visible, input:focus-visible { outline: 0; border-bottom-color: #ff
 .now .met { font-size: 22px; font-weight: 500; line-height: 1.2; margin-bottom: 8px; }
 .now .count { margin-bottom: 2px; }
 .tag { font-weight: 500; display: inline-block; width: 1.1em; }
-.view-b { height: 24vh; min-height: 0; align-self: start; }
+.view-b { height: 24vh; min-height: 0; max-height: 100%; align-self: start; }
+.under { grid-template-rows: minmax(0, 1fr); }      /* plan B's view gives way on a short screen */
 .view-b figcaption { left: 12px; right: 12px; bottom: 8px; }
 .view-b .stretch { position: absolute; right: 12px; top: 8px; color: var(--dim); font-size: 13px; }
 
@@ -110,9 +111,12 @@ a { color: inherit; }
 .view-a.solid .notes { order: 5; display: none; flex-basis: 100%; padding: 6px 0 4px; }
 .view-a.solid .top.open .notes { display: block; }
 .view-a.solid .seen, .view-a.solid .look, .view-a.solid .more { max-width: none; text-align: left; margin-bottom: 4px; }
-/* (the black box behind the sentence is painted on the 2D canvas, see backCaption in scene.js) */
-.view-a.solid figcaption { right: auto; left: 20px; bottom: 34px; max-width: calc(100% - 40px); }
-.view-a.above figcaption { bottom: 18px; }
+/* On a wide screen the plan sentence moves under the 3D picture, so it covers
+   nothing; the picture keeps its half of the screen. */
+.view-a.solid { height: auto; }
+.view-a.solid canvas { height: 50vh; }
+.view-a.solid figcaption { position: static; padding: 12px 20px 2px; }
+.view-a.solid .sentence { font-size: 17px; }
 
 /* the mission summary sits right under the verdict, before the flight plan */
 .summary { margin-bottom: 14px; max-width: 600px; }
@@ -145,7 +149,12 @@ a { color: inherit; }
   .notes, .view-a.solid .notes { order: 5; }
   .view-a.solid .top { padding: 8px 16px 6px; column-gap: 6px; }
   .view-a.solid .notes { margin: 6px -16px 0; padding: 8px 16px 10px; }
-  .view-a.solid figcaption { left: 16px; bottom: 32px; max-width: calc(100% - 32px); }
+  /* on a narrow screen there is no room under the picture: the sentence stays on it,
+     on a half-clear black box painted on the 2D canvas (backCaption in scene.js) */
+  .view-a.solid { height: 50vh; }
+  .view-a.solid canvas { height: 100%; }
+  .view-a.solid figcaption { position: absolute; padding: 0; right: auto; left: 16px; bottom: 32px; max-width: calc(100% - 32px); }
+  .view-a.solid .sentence { font-size: 15px; }
   .view-a.above figcaption { bottom: 14px; }
   .seen, .look, .more { max-width: none; text-align: left; margin-bottom: 6px; line-height: 1.45; }
   .sentence { font-size: 15px; line-height: 1.4; }

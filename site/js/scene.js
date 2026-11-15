@@ -349,14 +349,17 @@ export function drawOverlay(canvas, map) {
   drawCompass(ctx, width, height, 45, map.x, false);
 }
 
-// A black box on the 2D canvas behind the plan sentence, so the words can be
-// read whatever the ground under them looks like. Call after the marks are drawn.
+// A box on the 2D canvas behind the plan sentence, black but not quite opaque,
+// so the words can be read whatever the ground under them looks like and the
+// scene still shows through. Nothing when the sentence sits under the picture.
+// Call after the marks are drawn.
 export function backCaption(canvas, caption) {
   const ratio = window.devicePixelRatio || 1;
   const frame = canvas.getBoundingClientRect(), box = caption.getBoundingClientRect();
+  if (box.top >= frame.bottom - 1) return;
   const ctx = canvas.getContext("2d");
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.fillStyle = "#000";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.68)";
   ctx.fillRect(Math.round(box.left - frame.left) - 10, Math.round(box.top - frame.top) - 8,
     Math.round(box.width) + 20, Math.round(box.height) + 16);
 }

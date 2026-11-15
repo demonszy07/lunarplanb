@@ -356,7 +356,8 @@ function showMoment(force) {
     three.map = three.view.draw(moment3d(a, met), canvasA.clientWidth, canvasA.clientHeight, pixelRatio3d());
     if (solid === "above") {
       const caption = document.querySelector("#view-a figcaption").getBoundingClientRect();
-      drawAboveMarks(canvasA, three.map, a.views[met], caption.top - canvasA.getBoundingClientRect().top - 8);
+      const frameA = canvasA.getBoundingClientRect();
+      drawAboveMarks(canvasA, three.map, a.views[met], Math.min(caption.top, frameA.bottom - 4) - frameA.top - 8);
       frame = { full: false, centre: lookAz, windowDeg: 60, above: true };
       $("stretch-a").textContent = `from ${(three.distance / 1000).toFixed(1)} km away, no vertical stretch`;
       $("draw-note").textContent = "The ground is a 3D model from the LOLA heights. Shadows are cast by terrain within 20 km of the landing point. The arrows lie on the ground and point toward the Sun and Earth.";
