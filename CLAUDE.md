@@ -89,57 +89,61 @@ more than seven terrain sites.
 - One cursor: the scroll position of the flight plan is the only clock. Keys, strip, taps and
   drags all scroll the page (scrollToMet in app.js); never keep a second time variable.
   tests/check_controls.cjs checks this on a desktop and on a touch phone.
-- Stage 4 (3D hero) is built and tested (15 Nov) on branch claude/relaxed-darwin-2ebtlf.
-  It is NOT on main (the live page) yet: frame time on a real graphics card could not be
-  measured in the build environment (software rendering only, about 500 ms per picture, so
-  the fallback to 2D is what the tests see). Put it on main when the user says so.
-- Sizes now: first screen 302 kB on disk, 242 kB compressed; real sky 46 kB / 40 kB;
-  3D view 790 kB / 373 kB (three.js bundle 558 kB / 141 kB, terrain file 231 kB, not
-  compressible); everything 1138 kB / 654 kB.
+- Stage 4 (3D) is built and tested on branch claude/relaxed-darwin-2ebtlf, reworked on 15 Nov
+  after the user looked at the preview on a phone (see below). It is NOT on main (the live
+  page): the user looks at the preview first and then says "yayınla". Speed on a real graphics
+  card could still not be measured in the build environment (software rendering, about one
+  second per picture, so the tests see the fallback to 2D unless "?3d=force" is used).
+- Sizes now: first screen 312 kB on disk, 244 kB compressed; real sky 46 kB / 40 kB;
+  3D 1002 kB / 584 kB (three.js bundle 560 kB / 142 kB, terrain file 442 kB, not
+  compressible); everything 1359 kB / 868 kB.
 
-### In progress (15 Nov): 3D rework after the user looked at the preview on a phone
-The user's verdict: the eye-level 3D looks like the old panorama and the terrain is blurry.
-Do NOT publish to main; stay on the preview branch; the user approves after looking.
-Commit and push after every small step. If a question comes up, pick the most sensible option
-and write the choice here instead of stopping. Tasks, tick them here as they are done:
-- [ ] 1. Blur: find the cause and say it; draw at device pixel ratio (max 2), antialias on;
-      show the same moment before and after.
-- [ ] 2. Main 3D view from above ("View: from above"): camera circles the landing point about
-      35 degrees up; drag turns, pinch or wheel zooms; default distance where the mesh looks
-      best (5 to 8 km; enlarge the middle grid if needed and report the size). Landing point
-      marked; Sun and Earth directions as thin arrows on the ground, north marked separately.
-      Same mesh, Lommel-Seeliger and cast shadows; shadows move with the cursor. No vertical stretch.
-- [ ] 3. Eye level stays as second choice ("stand on the surface"), horizon at about 40 % of the
-      canvas height so the sky does not fill the screen.
-- [ ] 4. Page opens with the 2D panorama; view choice: panorama / from above / stand on the
-      surface. All numbers come from the 2D pipeline also in 3D; README Limits: the 3D mesh is
-      coarser, with the largest measured difference of the Sun's share.
-- [ ] 5. Touch: horizontal drag and two fingers on the canvas move the 3D view; vertical
-      scrolling still moves the page (time).
-Done when: phone and desktop screenshots from above at a moment with visible shadows; the frame
-time rule holds; this note is up to date.
+### 3D rework of 15 Nov (done, on the preview branch, waiting for the user's look)
+The user's verdict on the first 3D: it looked like the old panorama and the terrain was blurry.
+- [x] 1. Blur. Cause: not the pixel ratio (canvas already 2x, capped at 2) and not antialiasing
+      (already on, 4 samples), but the data: 160 m cells beyond 2 km and a strip painted at one
+      degree per column beyond 20 km. Fix: two more grids (80 m to 8 km, 960 m to 120 km).
+      Before and after of the same moment: docs/blur_before_after_phone.png.
+- [x] 2. "from above": camera circles the landing point 35 degrees up, 6 km away to start
+      (0.8 to 20 km); drag turns, wheel or two fingers zoom; landing point, Sun and Earth arrows
+      on the ground (dashed when behind terrain), north. Same mesh, light and cast shadows.
+- [x] 3. "stand on the surface": level sight line 40 % down the picture.
+- [x] 4. The page opens with the panorama; View: panorama / from above / stand on the surface.
+      All numbers come from 2D. README Limits names the coarser mesh and the largest measured
+      difference of the Sun's share (0.117).
+- [x] 5. Touch: sideways turns, two fingers zoom, up and down still scrolls the page (checked
+      in tests/check_3d.cjs on a touch phone).
+Screenshots: docs/above_desktop.png, docs/above_phone.png, docs/surface_desktop.png, docs/surface_phone.png.
 Choices made without asking:
-(none yet)
+- The middle (20 m) grid was not enlarged. Instead an 80 m grid to 8 km and a 960 m grid to
+  120 km were added: 442 kB per site, was 231 kB. From above, the ground then continues to
+  the horizon instead of ending at 20 km.
+- From above the camera faces north to start and does not follow the Sun, so the shadows are
+  seen to move as the cursor moves.
+- Over a 3D picture the words stand on black: a bar along the top with one line and the choice
+  of view, the other notes behind "i" on every screen size, a black box behind the plan
+  sentence. On narrow screens "View:" has a second line of its own (it is a control, not a note).
+- The far terrain is real mesh now, so the check moment "cut by terrain 42 km away" reads
+  0.728 in 3D against 0.614 in 2D (before, the strip was cut along the 2D skyline and agreed
+  by construction). Reported as is.
+- The 80 m grid is drawn to 7.68 km although heights are stored to 8 km (edges must sit on
+  grid lines of both grids); the 9 km check ridge lies just outside it. Left as is, not moved
+  to make the check look better.
+Open: speed on real hardware; a wider 5 m grid; shadows finer than two halves of the disc.
 
-### Stage 4 as built (the approved plan, with what came out)
-- Terrain: pipeline/build_3d.py writes data/sites/[id]_3d.bin (40 km at 160 m, 4 km at 20 m,
-  500 m at 5 m, plus the far-only skyline for panels at 2 m and 5 m). Curvature is in the
-  positions (115.1 m at 20 km). Needs the terrain files in data/raw/.
-- Scene: web3d/terrain.js (mesh, no drawing) and web3d/view3d.js (three.js). After a change
-  run "npm install" once and "npm run build3d"; the bundle site/js/view3d.bundle.js is committed.
-  Camera at panel height, 70 degrees wide, shifted lens (level sight line 60 % down), no vertical
-  stretch. Far strip cut along the far-only skyline. Stars as points, Earth as a sphere, Sun as
-  a true-size disc with the flare. The #3A3A3A skyline line is drawn in 3D too.
-- Light: Lommel-Seeliger shader; shadow maps in two steps (40 km, and 1 km around the camera),
-  each from the lower and upper half of the Sun's disc; far mountains dim all near ground by
-  the Sun's share above the far-only skyline (approximation, in README Limits).
-- Loading: after the real sky. No WebGL2, median of the first five pictures over 40 ms, or a
-  lost context: 3D is removed and the panorama stays. "?3d=off" and "?3d=force" override, for
-  checks. Draws only when the cursor, the direction or the plan changes.
-- Check: tests/test_view3d.py writes data/view3d_check.txt. In view / not in view agrees in
-  6 of 6 moments; shares differ where the mesh is coarser (0.624 against 0.591 for a crest
-  0.4 km away, 0.586 against 0.469 for a ridge 9 km away). Reported as is.
-- Nothing from the cut order was cut.
-- Open: a wider 5 m grid (the horizon at 2 m is often set 300 to 450 m away, outside the
-  500 m grid) would bring 3D closer to the 2D numbers at about 60 kB more per site; soft
-  shadows finer than two halves of the disc; the far strip is soft.
+### Stage 4 as built
+- Terrain: pipeline/build_3d.py writes data/sites/[id]_3d.bin: five grids (5 m to 250 m, 20 m
+  to 2 km, 80 m to 8 km, 160 m to 20 km, 960 m to 120 km) and two far-only skylines (beyond
+  19.2 km for dimming the shadowed ground, beyond 120 km for the strip), for panels at 2 m
+  and 5 m. Curvature is in the positions (115.1 m at 20 km). Needs the terrain files in data/raw/.
+- Scene: web3d/terrain.js (mesh, no drawing) and web3d/view3d.js (three.js). After a change run
+  "npm install" once and "npm run build3d"; the bundle site/js/view3d.bundle.js is committed.
+  The ground is drawn far first (outer grid and strip, own depth range), then the shadowed mesh.
+- Light: Lommel-Seeliger shader; shadow maps in two steps (inside the wide grid, and 1 km
+  around the site), each from the lower and upper half of the Sun's disc, depth compared on
+  the receiver's plane. Outer grid: lit, no shadows.
+- Loading: after the real sky. No WebGL2, median of the first five pictures (from above, new
+  shadows each) over 40 ms, or a lost context: 3D is removed and the panorama stays.
+  "?3d=off" and "?3d=force" override, for checks. Draws only when something changes.
+- Check: tests/test_view3d.py writes data/view3d_check.txt (shadows against rays, the Sun's
+  share 3D beside 2D, in view / not in view 6 of 6). tests/shadow_reference.py is the ray reference.

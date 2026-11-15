@@ -365,9 +365,10 @@ export function backCaption(canvas, caption) {
 // the ground toward the Sun and one toward Earth, and north. `map` comes from
 // View3D.draw: ground(east, north) is a place on the terrain, project() its
 // place in the picture. A dashed arrow means the body is behind terrain as
-// seen from the landing point.
+// seen from the landing point. Arrows end above `lowest` (the top of the plan
+// sentence, in pixels from the top), so their names are not covered.
 const POWER = "#F5D68A", LINK = "#6AA9FF";
-export function drawAboveMarks(canvas, map, view) {
+export function drawAboveMarks(canvas, map, view, lowest = Infinity) {
   const ratio = window.devicePixelRatio || 1;
   const width = canvas.clientWidth, height = canvas.clientHeight;
   canvas.width = Math.round(width * ratio);
@@ -389,7 +390,11 @@ export function drawAboveMarks(canvas, map, view) {
     return points;
   };
   const mark = (az, r1, colour, name, head, dashed) => {
-    const points = along(az, from, r1);
+    let points = along(az, from, r1);
+    for (let k = 0; k < 6 && points.length > 1 && points[points.length - 1][1] > lowest - 16; k++) {
+      r1 = from + (r1 - from) * 0.8;                     // shorter, until the end is clear of the sentence
+      points = along(az, from, r1);
+    }
     if (points.length < 2) return;
     ctx.strokeStyle = ctx.fillStyle = colour;
     ctx.setLineDash(dashed ? [4, 4] : []);

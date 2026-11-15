@@ -315,12 +315,16 @@ function showMoment(force) {
   // view A: one of the 3D pictures with its marks over it, or the panorama
   const canvasA = $("scene-a");
   $("scene-3d").hidden = !solid;
+  // over a 3D picture the words stand on black (style.css); set before measuring where they are
+  $("view-a").classList.toggle("solid", !!solid);
+  $("view-a").classList.toggle("above", solid === "above");
   let frame;                                    // { full, centre, windowDeg } of what view A shows
   if (solid) {
     if (three.siteRef !== a.site) { three.view.setSite(a.site, three.terrain.farStrip[a.plan.height]); three.siteRef = a.site; }
     three.map = three.view.draw(moment3d(a, met), canvasA.clientWidth, canvasA.clientHeight, pixelRatio3d());
     if (solid === "above") {
-      drawAboveMarks(canvasA, three.map, a.views[met]);
+      const caption = document.querySelector("#view-a figcaption").getBoundingClientRect();
+      drawAboveMarks(canvasA, three.map, a.views[met], caption.top - canvasA.getBoundingClientRect().top - 8);
       frame = { full: false, centre: lookAz, windowDeg: 60, above: true };
       $("stretch-a").textContent = `from ${(three.distance / 1000).toFixed(1)} km away, no vertical stretch`;
       $("draw-note").textContent = "The ground is a 3D model from the LOLA heights. Shadows are cast by terrain within 20 km of the landing point. The arrows lie on the ground and point toward the Sun and Earth.";
@@ -339,8 +343,6 @@ function showMoment(force) {
   }
   three.frame = frame;
   $("view-a").classList.toggle("turns", !frame.full);
-  $("view-a").classList.toggle("solid", !!solid);
-  $("view-a").classList.toggle("above", solid === "above");
   if (solid) backCaption(canvasA, document.querySelector("#view-a figcaption"));
   flag("view", solid || "2d");
   const gb = drawScene($("scene-b"), b.site, b.views[met],
