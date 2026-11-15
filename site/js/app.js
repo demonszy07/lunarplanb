@@ -4,7 +4,7 @@
 
 import { parseSky } from "./sky.js";
 import { SITES, B_CHOICES, planB, siteFile, runPlan, verdict, countdownText, formatMet, formatUtc, parseUtc } from "./plan.js";
-import { drawScene, drawOverlay, drawAboveMarks, offFrameNote, parseView, lighting, shadeGround, earthPictureSize } from "./scene.js";
+import { drawScene, drawOverlay, drawAboveMarks, backCaption, offFrameNote, parseView, lighting, shadeGround, earthPictureSize } from "./scene.js";
 import { discFraction } from "./visibility.js";
 import { drawHead, drawTrack, drawOverview, stripWidth, PX_PER_HOUR, TRACK_TOP } from "./flightplan.js";
 
@@ -339,6 +339,9 @@ function showMoment(force) {
   }
   three.frame = frame;
   $("view-a").classList.toggle("turns", !frame.full);
+  $("view-a").classList.toggle("solid", !!solid);
+  $("view-a").classList.toggle("above", solid === "above");
+  if (solid) backCaption(canvasA, document.querySelector("#view-a figcaption"));
   flag("view", solid || "2d");
   const gb = drawScene($("scene-b"), b.site, b.views[met],
     { forceFull: true, compass: false, ground: ground(b.plan), ...skyFor(1, b, met, $("scene-b")) });

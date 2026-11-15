@@ -96,6 +96,24 @@ thead th { border-top: 0; color: var(--dim); }
 td.diff { color: var(--text); }
 .note { color: var(--dim); font-size: 14px; margin-bottom: 10px; max-width: 46em; }
 a { color: inherit; }
+/* Over a 3D picture the ground can be bright anywhere, so the words stand on black:
+   one line and the choice of view on a bar along the top, the other notes behind "i",
+   the plan sentence in a box of its own. */
+.view-a.solid .top { left: 0; right: 0; top: 0; padding: 8px 20px 6px; background: #000; display: flex; flex-wrap: wrap;
+  align-items: center; column-gap: 14px; }
+.view-a.solid .brand { order: 1; }
+.view-a.solid .stretch { order: 2; text-align: left; flex: 1; }
+.view-a.solid .mode { order: 3; }
+.view-a.solid .info { order: 4; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
+  border: 1px solid var(--dim); border-radius: 50%; background: #000; color: var(--text);
+  font: 500 14px/1 Jost, system-ui, sans-serif; cursor: pointer; }
+.view-a.solid .notes { order: 5; display: none; flex-basis: 100%; padding: 6px 0 4px; }
+.view-a.solid .top.open .notes { display: block; }
+.view-a.solid .seen, .view-a.solid .look, .view-a.solid .more { max-width: none; text-align: left; margin-bottom: 4px; }
+/* (the black box behind the sentence is painted on the 2D canvas, see backCaption in scene.js) */
+.view-a.solid figcaption { right: auto; left: 20px; bottom: 34px; max-width: calc(100% - 40px); }
+.view-a.above figcaption { bottom: 18px; }
+
 /* the mission summary sits right under the verdict, before the flight plan */
 .summary { margin-bottom: 14px; max-width: 600px; }
 .summary h2 { font-size: 16px; margin-bottom: 4px; }
@@ -122,8 +140,13 @@ a { color: inherit; }
     border-bottom: 1px solid var(--line); }
   .top.open .notes { display: block; }
   /* the choice of view is a control, not a note: it keeps a line of its own under the first */
-  .mode { order: 3; flex-basis: 100%; font-size: 13px; margin-top: 2px; }
-  .notes { order: 4; }
+  .mode, .view-a.solid .mode { order: 4; flex-basis: 100%; font-size: 13px; margin-top: 2px; }
+  .info, .view-a.solid .info { order: 3; }
+  .notes, .view-a.solid .notes { order: 5; }
+  .view-a.solid .top { padding: 8px 16px 6px; column-gap: 6px; }
+  .view-a.solid .notes { margin: 6px -16px 0; padding: 8px 16px 10px; }
+  .view-a.solid figcaption { left: 16px; bottom: 32px; max-width: calc(100% - 32px); }
+  .view-a.above figcaption { bottom: 14px; }
   .seen, .look, .more { max-width: none; text-align: left; margin-bottom: 6px; line-height: 1.45; }
   .sentence { font-size: 15px; line-height: 1.4; }
   .sentence.small { font-size: 14px; }

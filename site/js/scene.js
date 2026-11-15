@@ -349,6 +349,18 @@ export function drawOverlay(canvas, map) {
   drawCompass(ctx, width, height, 45, map.x, false);
 }
 
+// A black box on the 2D canvas behind the plan sentence, so the words can be
+// read whatever the ground under them looks like. Call after the marks are drawn.
+export function backCaption(canvas, caption) {
+  const ratio = window.devicePixelRatio || 1;
+  const frame = canvas.getBoundingClientRect(), box = caption.getBoundingClientRect();
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.fillStyle = "#000";
+  ctx.fillRect(Math.round(box.left - frame.left) - 10, Math.round(box.top - frame.top) - 8,
+    Math.round(box.width) + 20, Math.round(box.height) + 16);
+}
+
 // The marks over the view from above: the landing point, a thin arrow along
 // the ground toward the Sun and one toward Earth, and north. `map` comes from
 // View3D.draw: ground(east, north) is a place on the terrain, project() its
@@ -394,10 +406,13 @@ export function drawAboveMarks(canvas, map, view) {
       ctx.lineTo(x1 - 8 * ux + 4 * uy, y1 - 8 * uy - 4 * ux);
       ctx.stroke();
     }
-    ctx.textAlign = ux > 0.3 ? "left" : ux < -0.3 ? "right" : "center";
-    ctx.fillText(name, x1 + 9 * ux, y1 + 11 * uy);
+    // the name just past the end, kept inside the picture
+    const wide = ctx.measureText(name).width;
+    const x = x1 + 9 * ux - (ux > 0.3 ? 0 : ux < -0.3 ? wide : wide / 2);
+    ctx.textAlign = "left";
+    ctx.fillText(name, Math.min(Math.max(x, 4), width - wide - 4), y1 + 11 * uy);
   };
-  mark(0, reach * 0.72, LABEL, "north", false, false);
+  mark(0, reach * 0.5, LABEL, "north", false, false);
   mark(view.earthAz, reach, LINK, view.earthLink ? "Earth" : "Earth (behind terrain)", true, !view.earthLink);
   mark(view.sunAz, reach, POWER, view.sunFraction > 0 ? "Sun" : "Sun (behind terrain)", true, !(view.sunFraction > 0));
   // the landing point
