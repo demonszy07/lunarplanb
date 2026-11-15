@@ -166,7 +166,9 @@ async function start3d() {
     $("mode").hidden = false;
     fitFields();
     flag("view3d", "on");
-    window.lunar3d = { measureSun: () => three.view.measureSun(moment3d(state.runs[0], state.met)), view };
+    // for the checks in tests/check_3d.cjs
+    window.lunar3d = { view, moment: () => moment3d(state.runs[0], state.met),
+                       measureSun: () => three.view.measureSun(moment3d(state.runs[0], state.met)) };
     showMoment(true);
   } catch (error) {
     if (three.view) three.view.dispose();
@@ -225,7 +227,8 @@ function moment3d(run, met, terrain = three.terrain) {
     light: { source: light.source, strength,
              az: light.source === "earth" ? view.earthAz : view.sunAz, el: light.source === "earth" ? view.earthEl : view.sunEl,
              colour: light.source === "earth" ? [120 / 255, 140 / 255, 175 / 255] : [184 / 255, 180 / 255, 172 / 255],
-             level: light.source === "earth" ? 0.32 : 1 },
+             level: light.source === "earth" ? 0.32 : 1,
+             diameter: light.source === "earth" ? view.earthDiameter : view.sunDiameter },
     starMatrix: state.stars && !hideStars ? state.real.siteMatrix(hours, site.lat, site.lon) : null,
     earth: state.earth ? { ...state.real.earthFacing(state.earth, hours),
                            pole: state.real.earthPoleAngle(hours, site.lat, site.lon, view.earthAz, view.earthEl) } : null,

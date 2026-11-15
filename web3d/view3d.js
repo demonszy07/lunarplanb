@@ -16,9 +16,10 @@
 // Scene axes: x east, y up, z south. Origin: the ground at the site.
 
 import {
-  BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, DoubleSide, LinearFilter, LinearSRGBColorSpace, Mesh,
-  MeshBasicMaterial, NoColorSpace, NormalBlending, PerspectiveCamera, Points, RepeatWrapping, Scene, ShaderMaterial,
-  SphereGeometry, Texture, Vector3, WebGLRenderer, WebGLRenderTarget,
+  BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, DepthTexture, DoubleSide,
+  LinearFilter, LinearSRGBColorSpace, Matrix4, Mesh, MeshBasicMaterial, NearestFilter, NoColorSpace, NormalBlending, OrthographicCamera,
+  PerspectiveCamera, PlaneGeometry, Points, RedFormat, RepeatWrapping, Scene, ShaderMaterial, SphereGeometry, Texture, UnsignedByteType,
+  UnsignedIntType, Vector3, WebGLRenderer, WebGLRenderTarget,
 } from "three";
 import { buildTerrain, parseTerrain } from "./terrain.js";
 
@@ -31,6 +32,18 @@ const SKY = { stars: 70000, sun: 65000, earth: 60000, backdrop: 50000 };
 const RAD = Math.PI / 180;
 const SUN = [1, 0.973, 0.906];            // #FFF8E7
 const DISC = Math.sin(0.2666 * RAD);      // half width of the Sun's disc
+
+// Shadows: the ground is drawn from the light's side into depth pictures
+// (shadow maps), and a point is lit if nothing in that picture is nearer the
+// light. Two steps: one picture holds the whole 40 km mesh, a finer one the
+// kilometre around the camera. Each step is drawn twice, from the middle of
+// the upper and of the lower half of the light's disc, so ground that sees
+// half the Sun is half lit.
+const SHADOW_SIZE = { wide: 2048, near: 1024 };
+const NEAR_HALF = 1000;                   // metres: the finer step covers this far from the camera, each way
+const LIGHT_AT = 60000;                   // metres from the site to where the light's camera stands
+const HALF_DISC = 0.4244;                 // centre of half a disc, in radii from its middle: 4 / (3 pi)
+const NEAR_BIAS = "0.25", WIDE_BIAS = "2.0";   // metres of depth allowed for rounding, per step
 
 // unit vector of a direction given by azimuth (clockwise from north) and elevation
 function direction(azDeg, elDeg, out = new Vector3()) {
@@ -65,15 +78,75 @@ uniform vec3 uEye;
 uniform vec3 uColour;
 uniform float uStrength;    // share of the light that far terrain lets through
 uniform float uLevel;
+uniform float uShadows;                    // 0 draws without cast shadows
+uniform float uProbe;                      // 1 writes the light itself, for checks: red = faces the light, green = reached
+uniform highp sampler2D uWide0;            // whole mesh, lower and upper half of the light's disc
+uniform highp sampler2D uWide1;
+uniform highp sampler2D uNear0;            // the kilometre around the camera
+uniform highp sampler2D uNear1;
+uniform mat4 uShadowMatrix[4];             // scene -> place in each shadow map (wide 0, wide 1, near 0, near 1)
+uniform vec4 uTexel;                       // metres per texel: wide across, wide up, near across, near up
+uniform vec4 uRange;                       // metres of depth each map spans
+uniform vec2 uMapSize;                     // texels per side: wide, near
+uniform vec3 uLightHalf[2];                // unit vectors toward the lower and the upper half of the disc
+uniform vec3 uLightRight;                  // the shadow maps' own right and up directions
+uniform vec3 uLightUp;
 varying vec3 vNormal;
 varying vec3 vPlace;
 const float DISC = ${DISC.toFixed(8)};
 float softMu0(float mu0) {
   return mu0 >= DISC ? mu0 : mu0 <= -DISC ? 0.0 : (mu0 + DISC) * (mu0 + DISC) / (4.0 * DISC);
 }
+// Does the light reach this point past the rest of the mesh, in one shadow map?
+// The light is nearly level, so the ground runs almost along it and its depth
+// in the map changes fast from one texel to the next. Each of the four texels
+// around the point is therefore compared with the depth that the point's own
+// piece of ground, taken as flat, would have at that texel, not with the depth
+// at the point. "slope" is that change of depth per texel, across and up.
+float reachedIn(highp sampler2D map, vec4 q, float size, vec2 slope, float bias) {
+  if (q.x <= 0.0 || q.x >= 1.0 || q.y <= 0.0 || q.y >= 1.0) return 1.0;
+  vec2 t = q.xy * size - 0.5;
+  ivec2 base = ivec2(floor(t));
+  vec2 f = t - vec2(base);
+  float lit[4];
+  for (int k = 0; k < 4; k++) {
+    ivec2 o = ivec2(k & 1, k >> 1);
+    ivec2 texel = clamp(base + o, ivec2(0), ivec2(int(size) - 1));
+    float expected = q.z + dot(vec2(o) - f, slope);
+    lit[k] = texelFetch(map, texel, 0).r >= expected - bias ? 1.0 : 0.0;
+  }
+  return mix(mix(lit[0], lit[1], f.x), mix(lit[2], lit[3], f.x), f.y);
+}
+// Share of the light that reaches this point: each half of the disc counts for half.
+// The allowance for rounding is a quarter of a texel of the ground's own slope
+// plus a fixed length. It was chosen by comparing with straight rays through
+// the same mesh (tests/shadow_reference.py), which also reports what is left.
+float reached(vec3 n) {
+  bool close = abs(vPlace.x) < ${(NEAR_HALF - 10).toFixed(1)} && abs(vPlace.z) < ${(NEAR_HALF - 10).toFixed(1)};
+  float sum = 0.0;
+  for (int k = 0; k < 2; k++) {
+    float mu = dot(n, uLightHalf[k]);
+    if (mu <= 0.0005) continue;                        // turned away from this half of the disc: its own shadow
+    vec2 perMetre = vec2(dot(n, uLightRight), dot(n, uLightUp)) / mu;
+    if (close) {
+      vec2 slope = perMetre * uTexel.zw / uRange[2 + k];
+      vec4 q = uShadowMatrix[2 + k] * vec4(vPlace, 1.0);
+      float bias = ${NEAR_BIAS} / uRange[2 + k] + 0.25 * (abs(slope.x) + abs(slope.y));
+      sum += k == 0 ? reachedIn(uNear0, q, uMapSize.y, slope, bias) : reachedIn(uNear1, q, uMapSize.y, slope, bias);
+    } else {
+      vec2 slope = perMetre * uTexel.xy / uRange[k];
+      vec4 q = uShadowMatrix[k] * vec4(vPlace, 1.0);
+      float bias = ${WIDE_BIAS} / uRange[k] + 0.25 * (abs(slope.x) + abs(slope.y));
+      sum += k == 0 ? reachedIn(uWide0, q, uMapSize.x, slope, bias) : reachedIn(uWide1, q, uMapSize.x, slope, bias);
+    }
+  }
+  return 0.5 * sum;
+}
 void main() {
   vec3 n = normalize(vNormal);
   float mu0 = softMu0(dot(n, uLight));
+  if (uProbe > 0.5) { gl_FragColor = vec4(dot(n, uLight) > 0.0 ? 1.0 : 0.0, reached(n), 0.0, 1.0); return; }
+  if (mu0 > 0.0 && uShadows > 0.5) mu0 *= reached(n);
   float mu = max(0.01, dot(n, normalize(uEye - vPlace)));
   float value = mu0 > 0.0 ? uLevel * pow(uStrength * mu0 / (mu0 + mu), 1.0 / 2.2) : 0.0;
   gl_FragColor = vec4(uColour * value, 1.0);
@@ -137,6 +210,28 @@ void main() {
   gl_FragColor = vec4(mu0 > 0.0 ? day : night, 1.0);
 }`;
 
+// The skyline: a thin line in the first sky pixels above the ground, as in the
+// panorama. Unlit ground is black like the sky, and without this line the two
+// would run together. uMask is a picture of where the ground is.
+const EDGE_VERTEX = `
+void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`;
+const EDGE_FRAGMENT = `
+uniform sampler2D uMask;
+uniform vec2 uPixel;        // one device pixel, as a share of the picture
+uniform float uThick;       // line thickness in device pixels
+void main() {
+  vec2 at = gl_FragCoord.xy * uPixel;
+  if (texture2D(uMask, at).r > 0.5) discard;                       // ground itself
+  float ground = 0.0;
+  for (float k = 1.0; k <= 3.0; k += 1.0) {
+    if (k > uThick) break;
+    ground = max(ground, texture2D(uMask, at - vec2(0.0, k * uPixel.y)).r);
+    ground = max(ground, max(texture2D(uMask, at - vec2(k * uPixel.x, 0.0)).r, texture2D(uMask, at + vec2(k * uPixel.x, 0.0)).r));
+  }
+  if (ground < 0.5) discard;
+  gl_FragColor = vec4(0.2275, 0.2275, 0.2275, 1.0);                // #3A3A3A
+}`;
+
 function shader(vertexShader, fragmentShader, uniforms, extra = {}) {
   return new ShaderMaterial({ vertexShader, fragmentShader, uniforms, ...extra });
 }
@@ -159,9 +254,27 @@ export class View3D {
 
     this.groundMaterial = shader(GROUND_VERTEX, GROUND_FRAGMENT, {
       uLight: { value: new Vector3(0, 1, 0) }, uEye: { value: this.eye }, uColour: { value: new Vector3(1, 1, 1) },
-      uStrength: { value: 1 }, uLevel: { value: 1 },
+      uStrength: { value: 1 }, uLevel: { value: 1 }, uShadows: { value: 0 }, uProbe: { value: 0 },
+      uWide0: { value: null }, uWide1: { value: null }, uNear0: { value: null }, uNear1: { value: null },
+      uShadowMatrix: { value: [new Matrix4(), new Matrix4(), new Matrix4(), new Matrix4()] },
+      uTexel: { value: [1, 1, 1, 1] }, uRange: { value: [1, 1, 1, 1] },
+      uMapSize: { value: [SHADOW_SIZE.wide, SHADOW_SIZE.near] },
+      uLightHalf: { value: [new Vector3(0, 1, 0), new Vector3(0, 1, 0)] },
+      uLightRight: { value: new Vector3(1, 0, 0) }, uLightUp: { value: new Vector3(0, 1, 0) },
     });
     this.meshes = [];
+    // four shadow maps: [wide 0, wide 1, near 0, near 1]
+    this.shadows = ["uWide0", "uWide1", "uNear0", "uNear1"].map((name, k) => {
+      const size = k < 2 ? SHADOW_SIZE.wide : SHADOW_SIZE.near;
+      const depth = new DepthTexture(size, size, UnsignedIntType);     // 24 bits: millimetres over 50 km
+      depth.minFilter = depth.magFilter = NearestFilter;
+      const target = new WebGLRenderTarget(size, size, { format: RedFormat, type: UnsignedByteType, depthTexture: depth });
+      this.groundMaterial.uniforms[name].value = depth;
+      return { target, size, camera: new OrthographicCamera(-1, 1, 1, -1, 1, 2) };
+    });
+    this.depthOnly = new MeshBasicMaterial({ colorWrite: false, side: DoubleSide });
+    this.shadowKey = "";
+    this.castShadows = true;
 
     this.backdropMaterial = shader(BACKDROP_VERTEX, BACKDROP_FRAGMENT, {
       uPicture: { value: null }, uHasPicture: { value: 0 }, uElTop: { value: 2.4 }, uElSpan: { value: 10.4 },
@@ -194,6 +307,16 @@ export class View3D {
       this.sky.add(part);
     }
     this.black = new MeshBasicMaterial({ color: 0x000000, side: DoubleSide });
+    // for the skyline: the ground drawn plain white into a picture of its own, then the line from that
+    this.white = new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide, depthTest: false, depthWrite: false });
+    this.mask = new WebGLRenderTarget(4, 4, { format: RedFormat, type: UnsignedByteType, depthBuffer: false });
+    this.mask.texture.minFilter = this.mask.texture.magFilter = NearestFilter;
+    this.edgeMaterial = shader(EDGE_VERTEX, EDGE_FRAGMENT,
+      { uMask: { value: this.mask.texture }, uPixel: { value: [1, 1] }, uThick: { value: 1 } }, { depthTest: false, depthWrite: false });
+    this.edge = new Scene();
+    const sheet = new Mesh(new PlaneGeometry(2, 2), this.edgeMaterial);
+    sheet.frustumCulled = false;
+    this.edge.add(sheet);
     this.probe = null;
   }
 
@@ -211,6 +334,72 @@ export class View3D {
       return mesh;
     });
     this.triangles = this.meshes.reduce((sum, mesh) => sum + mesh.geometry.index.count / 3, 0);
+    // points that bound the shadow maps: the whole wide grid, and what lies within a kilometre
+    const levels = this.meshes.map((mesh) => mesh.geometry.getAttribute("position").array);
+    this.widePoints = levels[0];
+    const close = [];
+    for (const points of [levels[1], levels[2]]) {
+      for (let k = 0; k < points.length; k += 3) {
+        if (Math.abs(points[k]) <= NEAR_HALF && Math.abs(points[k + 2]) <= NEAR_HALF) close.push(points[k], points[k + 1], points[k + 2]);
+      }
+    }
+    this.nearPoints = new Float32Array(close);
+    this.shadowKey = "";
+  }
+
+  // Draw the four shadow maps for a light at (az, el) whose disc is `diameter` degrees wide.
+  castFrom(az, el, diameter) {
+    const key = [az.toFixed(3), el.toFixed(3), diameter.toFixed(3)].join();
+    if (key === this.shadowKey) return;
+    this.shadowKey = key;
+    const uniforms = this.groundMaterial.uniforms, e = new Float32Array(16), v = new Vector3();
+    this.backdrop.visible = false;
+    this.ground.overrideMaterial = this.depthOnly;
+    this.shadows.forEach((shadow, k) => {
+      const camera = shadow.camera, half = (k % 2 ? 1 : -1) * HALF_DISC * diameter / 2;
+      direction(az, el + half, uniforms.uLightHalf.value[k % 2]);
+      camera.position.copy(uniforms.uLightHalf.value[k % 2]).multiplyScalar(LIGHT_AT);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+      e.set(camera.matrixWorldInverse.elements);
+      // the box, in the light's own axes, that holds what must be in the picture
+      const box = (points, out) => {
+        for (let i = 0; i < points.length; i += 3) {
+          const x = points[i], y = points[i + 1], z = points[i + 2];
+          const lx = e[0] * x + e[4] * y + e[8] * z + e[12], ly = e[1] * x + e[5] * y + e[9] * z + e[13];
+          const lz = e[2] * x + e[6] * y + e[10] * z + e[14];
+          if (lx < out[0]) out[0] = lx; if (lx > out[1]) out[1] = lx;
+          if (ly < out[2]) out[2] = ly; if (ly > out[3]) out[3] = ly;
+          if (lz < out[4]) out[4] = lz; if (lz > out[5]) out[5] = lz;
+        }
+        return out;
+      };
+      const all = box(this.widePoints, [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity]);
+      const frame = k < 2 ? all : box(this.nearPoints, [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity]);
+      const padX = 2 * (frame[1] - frame[0]) / shadow.size, padY = 2 * (frame[3] - frame[2]) / shadow.size;
+      camera.left = frame[0] - padX; camera.right = frame[1] + padX;
+      camera.bottom = frame[2] - padY; camera.top = frame[3] + padY;
+      camera.near = -all[5] - 50;                       // everything between the light and the far side can cast
+      camera.far = -all[4] + 50;
+      camera.updateProjectionMatrix();
+      uniforms.uShadowMatrix.value[k].set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1)
+        .multiply(camera.projectionMatrix).multiply(camera.matrixWorldInverse);
+      uniforms.uTexel.value[k < 2 ? 0 : 2] = (camera.right - camera.left) / shadow.size;
+      uniforms.uTexel.value[k < 2 ? 1 : 3] = (camera.top - camera.bottom) / shadow.size;
+      uniforms.uRange.value[k] = camera.far - camera.near;
+      this.renderer.setRenderTarget(shadow.target);
+      this.renderer.clear();
+      this.renderer.render(this.ground, camera);
+    });
+    // right and up of the maps (the two halves differ by a quarter of a degree; the first one serves)
+    const m = this.shadows[0].camera.matrixWorld.elements;
+    uniforms.uLightRight.value.set(m[0], m[1], m[2]);
+    uniforms.uLightUp.value.set(m[4], m[5], m[6]);
+    this.ground.overrideMaterial = null;
+    this.backdrop.visible = true;
+    this.renderer.setRenderTarget(null);
   }
 
   // Panel height (the camera) and the skyline of the terrain beyond the mesh
@@ -261,6 +450,10 @@ export class View3D {
     this.size = { width, height, ratio };
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height, false);
+    const w = Math.floor(width * ratio), h = Math.floor(height * ratio);
+    this.mask.setSize(w, h);
+    this.edgeMaterial.uniforms.uPixel.value = [1 / w, 1 / h];
+    this.edgeMaterial.uniforms.uThick.value = Math.max(1, Math.round(ratio));
   }
 
   // Pixels per unit of tan(angle) at the middle of the picture.
@@ -293,6 +486,9 @@ export class View3D {
     light.uColour.value.set(...at.light.colour);
     light.uStrength.value = at.light.source === "none" ? 0 : at.light.strength;
     light.uLevel.value = at.light.level;
+    const casting = this.castShadows && at.light.source !== "none" && light.uStrength.value > 0;
+    light.uShadows.value = casting ? 1 : 0;
+    if (casting) this.castFrom(at.light.az, at.light.el, at.light.diameter);
 
     // far mountains
     const back = this.backdropMaterial.uniforms;
@@ -375,6 +571,15 @@ export class View3D {
     this.renderer.render(this.sky, camera);
     this.renderer.clearDepth();
     this.renderer.render(this.ground, camera);
+    if (target) return;
+    // the skyline over the finished picture
+    this.ground.overrideMaterial = this.white;
+    this.renderer.setRenderTarget(this.mask);
+    this.renderer.clear();
+    this.renderer.render(this.ground, camera);
+    this.ground.overrideMaterial = null;
+    this.renderer.setRenderTarget(null);
+    this.renderer.render(this.edge, camera);
   }
 
   // Draw one picture. Returns how azimuths map to x, for the direction labels.
@@ -399,6 +604,7 @@ export class View3D {
   time(at, width, height, ratio, frames = 5) {
     const times = [], pixel = new Uint8Array(4);
     for (let k = 0; k < frames; k++) {
+      this.shadowKey = "";                      // as when the time is being dragged: new shadows every picture
       const start = performance.now();
       this.draw(at, width, height, ratio);
       this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, pixel);
@@ -436,15 +642,50 @@ export class View3D {
       return lit;
     };
     const whole = count(false), seen = count(true);
+    // what does the cutting: the mesh alone, and the strip of far mountains alone
+    this.backdrop.visible = false;
+    const pastMesh = count(true);
+    this.backdrop.visible = true;
+    for (const mesh of this.meshes) mesh.visible = false;
+    const pastStrip = count(true);
+    for (const mesh of this.meshes) mesh.visible = true;
     for (const [part, was] of hidden) part.visible = was;
     this.renderer.setRenderTarget(null);
-    return { seenPixels: seen, discPixels: whole, fraction: whole ? seen / whole : 0 };
+    const share = (n) => (whole ? n / whole : 0);
+    return { seenPixels: seen, discPixels: whole, fraction: share(seen), pastMeshOnly: share(pastMesh), pastStripOnly: share(pastStrip) };
+  }
+
+  // Check: the mesh seen from straight above, north up, `half` metres from the
+  // site to each edge, `size` pixels square. Red = the ground faces the light,
+  // green = share of the light that the shadow maps let through. Rows run south to north.
+  mapPicture(at, size, half) {
+    this.place(at, this.size.width || 800);
+    const camera = new OrthographicCamera(-half, half, half, -half, 10, 30000);
+    camera.position.set(0, 15000, 0);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    const target = new WebGLRenderTarget(size, size);
+    this.backdrop.visible = false;
+    this.groundMaterial.uniforms.uProbe.value = 1;
+    this.renderer.setRenderTarget(target);
+    this.renderer.clear();
+    this.renderer.render(this.ground, camera);
+    const pixels = new Uint8Array(size * size * 4);
+    this.renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
+    this.groundMaterial.uniforms.uProbe.value = 0;
+    this.backdrop.visible = true;
+    this.renderer.setRenderTarget(null);
+    target.dispose();
+    return pixels;
   }
 
   dispose() {
     for (const mesh of this.meshes) mesh.geometry.dispose();
     this.backdrop.geometry.dispose();
     if (this.probe) this.probe.dispose();
+    this.mask.dispose();
+    for (const shadow of this.shadows) { shadow.target.depthTexture.dispose(); shadow.target.dispose(); }
     this.renderer.dispose();
     this.renderer.forceContextLoss();
   }
