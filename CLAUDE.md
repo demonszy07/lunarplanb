@@ -122,6 +122,10 @@ more than seven terrain sites.
     only where the speed check passes). Values that do not fit are ignored.
   - Checked in tests/check_controls.cjs (desktop and touch phone) and tests/run_plan_js.mjs.
     Screenshots: docs/date_calendar_desktop.png, docs/date_calendar_phone.png.
+- Before the presentation (15 Nov): the product is named "LunaricB" (page title, the name over
+  the view, README title; the repository keeps its name). Field widths are measured with the
+  page's own type settings (tabular figures; the canvas measure cut "2028-11-30 00:0").
+  Arrow names from above are placed at the arrow ends and move aside when they would overlap.
 - Sizes now: first screen 330 kB on disk, 251 kB compressed (datefield.js added); real sky
   46 kB / 40 kB; 3D 1002 kB / 584 kB (three.js bundle 560 kB / 142 kB, terrain file 442 kB,
   not compressible).

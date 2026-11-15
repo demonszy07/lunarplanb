@@ -33,4 +33,4 @@ extra: partly cut by terrain 9 km away   2027-06-13 11:00 UTC  Sun az  208.11 el
                                          2D 0.469   3D 0.586 (14064 of 23992 px)   mesh alone 0.586  strip alone 1.000   in view: 2D yes, 3D yes
 
 In view / not in view agrees in 6 of 6 moments. Largest difference of the share: 0.117.
-Speed check in the test browser (software graphics): median 845.4 ms over 5 pictures, 378696 triangles.
+Speed check in the test browser (software graphics): median 1646.7 ms over 5 pictures, 378696 triangles.

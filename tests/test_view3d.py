@@ -121,6 +121,12 @@ def test_3d_view_against_rays_and_against_the_2d_numbers(capsys):
     # the software graphics of the test browser are too slow: stopped after five pictures, panorama only
     slow = got["slowDevice"]
     assert slow["view3d"] == "slow" and slow["frames"] == "5" and float(slow["frameMs"]) > 180 and not slow["modeShown"]
+    # the reported moment (Mons Mouton, 2028-11-30, MET 063): Sun and Earth are 6.6 degrees apart,
+    # yet the names of the arrows do not overlap; every word of the sentence is whole in every view
+    rep = got["reported"]
+    assert rep["title"] == "LunaricB" and rep["brand"] == "LunaricB" and rep["view"] == "above"
+    assert rep["names"] == ["Sun", "Earth", "north"] and rep["overlapping"] == 0
+    assert rep["fit"] == {"above": True, "surface": True, "2d": True} and rep["date"] == "2028-11-30 00:00"
     # fingers on the view from above: sideways turns it, two fingers move the camera,
     # up and down still scrolls the page (the time)
     touch = got["touch"]

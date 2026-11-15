@@ -26,12 +26,20 @@ function fillSelect(select, pairs, value) {
 }
 // A select is as wide as its longest option; make it as wide as the chosen
 // words so it sits in the sentence like any other word. The date box too.
-const ruler = document.createElement("canvas").getContext("2d");
+// The words are measured in the page itself, with the field's own type
+// settings: the page draws figures all of one width (tabular), which a canvas
+// cannot, and the box then cut the last figure ("2028-11-30 00:0").
+const ruler = document.createElement("span");
+ruler.setAttribute("aria-hidden", "true");
+ruler.style.cssText = "position: absolute; left: -9999px; top: 0; visibility: hidden; white-space: pre;";
+document.body.append(ruler);
+const TYPE = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "fontStretch", "letterSpacing",
+  "fontVariantNumeric", "fontFeatureSettings", "fontKerning"];
 function fitField(field) {
   const style = getComputedStyle(field);
-  ruler.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-  const label = field.matches("select") ? (field.selectedOptions[0] ? field.selectedOptions[0].text : "") : field.value;
-  field.style.width = Math.ceil(ruler.measureText(label).width) + 2 + "px";
+  for (const name of TYPE) ruler.style[name] = style[name];
+  ruler.textContent = field.matches("select") ? (field.selectedOptions[0] ? field.selectedOptions[0].text : "") : field.value;
+  field.style.width = Math.ceil(ruler.getBoundingClientRect().width) + 2 + "px";
 }
 function fitFields() { document.querySelectorAll("select, input[type=text]").forEach(fitField); }
 
@@ -365,7 +373,7 @@ function showMoment(force) {
     if (solid === "above") {
       const caption = document.querySelector("#view-a figcaption").getBoundingClientRect();
       const frameA = canvasA.getBoundingClientRect();
-      drawAboveMarks(canvasA, three.map, a.views[met], Math.min(caption.top, frameA.bottom - 4) - frameA.top - 8);
+      three.names = drawAboveMarks(canvasA, three.map, a.views[met], Math.min(caption.top, frameA.bottom - 4) - frameA.top - 8);
       frame = { full: false, centre: lookAz, windowDeg: 60, above: true };
       $("stretch-a").textContent = `from ${(three.distance / 1000).toFixed(1)} km away, no vertical stretch`;
       $("draw-note").textContent = "The ground is a 3D model from the LOLA heights. Shadows are cast by terrain within 20 km of the landing point. The arrows lie on the ground and point toward the Sun and Earth.";
@@ -760,6 +768,7 @@ function fromAddress() {
 }
 
 // the landing time box: typing changes digits only; a click opens the calendar
+$("a-date").addEventListener("input", () => fitField($("a-date")));
 const dateBox = dateField($("a-date"), () => showPlans(), () => state.sky
   ? [state.sky.epochMs, state.sky.epochMs + state.sky.lastHour * 3600000]
   : [Date.UTC(2026, 0, 1), Date.UTC(2030, 11, 31, 23)]);

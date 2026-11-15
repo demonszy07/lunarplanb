@@ -141,6 +141,43 @@ const { serve } = require("./shoot.cjs");
   out.page.framesForOneHour = (await frames()) - idleFrom;
   await page.close();
 
+  // ---- the reported moment: names of the arrows apart, every word of the sentence whole ----
+  const demo = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await demo.goto(base + "?site=mouton&date=2028-11-30T00:00&days=10&panels=2&b=week&met=63&view=above&3d=force");
+  await demo.waitForSelector("html[data-view3d]", { timeout: 120000 });
+  await demo.waitForTimeout(400);
+  const overlapping = (boxes) => {
+    let n = 0;
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) n++;
+    }
+    return n;
+  };
+  // the words of a field against its room, measured with a span placed in the same sentence
+  const fieldsFit = (page) => page.evaluate(() => [...document.querySelectorAll(".view-a select, .view-a input")]
+    .filter((f) => f.offsetParent).every((f) => {
+      const probe = document.createElement("span");
+      probe.style.whiteSpace = "pre";
+      probe.textContent = f.matches("select") ? f.selectedOptions[0].text : f.value;
+      f.parentNode.insertBefore(probe, f);
+      const text = probe.getBoundingClientRect().width;
+      probe.remove();
+      const st = getComputedStyle(f);
+      return text <= f.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) + 0.01 &&
+        (!f.matches("input") || f.scrollWidth <= f.clientWidth);
+    }));
+  const names = await demo.evaluate(() => window.lunar3d.three.names);
+  out.reported = { title: await demo.title(), brand: await demo.textContent(".brand"), view: (await data(demo)).view,
+                   names: names.map((b) => b.name), overlapping: overlapping(names), fit: {} };
+  for (const mode of ["above", "surface", "2d"]) {
+    await demo.selectOption("#view-mode", mode);
+    await demo.waitForTimeout(250);
+    out.reported.fit[mode] = await fieldsFit(demo);
+  }
+  out.reported.date = await demo.inputValue("#a-date");
+  await demo.close();
+
   // ---- fingers on the view from above, on a phone ----
   const context = await browser.newContext({ viewport: { width: 360, height: 740 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const phone = await context.newPage();

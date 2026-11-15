@@ -349,6 +349,50 @@ export function drawOverlay(canvas, map) {
   drawCompass(ctx, width, height, 45, map.x, false);
 }
 
+// Each name goes just past the end of its arrow. When it would touch a name
+// already placed, the landing point mark or the edge of the picture, it moves
+// sideways from its arrow, one line at a time, then farther out along it;
+// the first free place is taken. Returns the boxes, for the checks.
+const LINE = 16;
+export function placeNames(ctx, names, width, bottom, site) {
+  const placed = [], boxes = [];
+  if (site) placed.push({ left: site[0] - 9, right: site[0] + 9, top: site[1] - 9, bottom: site[1] + 9 });
+  const touches = (b) => placed.some((o) => b.left < o.right + 3 && b.right > o.left - 3 && b.top < o.bottom + 2 && b.bottom > o.top - 2);
+  const inside = (b) => b.left >= 4 && b.right <= width - 4 && b.top >= 4 && b.bottom <= bottom;
+  for (const label of names) {
+    const wide = ctx.measureText(label.name).width;
+    const { x1, y1, ux, uy } = label;
+    // where the name sits for a point at the end of the arrow: on the far side of it
+    const boxAt = (x, y) => {
+      const left = ux > 0.3 ? x : ux < -0.3 ? x - wide : x - wide / 2;
+      return { left, right: left + wide, top: y - LINE / 2, bottom: y + LINE / 2 };
+    };
+    const tries = [];
+    for (const out of [0, 1, 2, 3]) {
+      const bx = x1 + (9 + out * LINE) * ux, by = y1 + (11 + out * LINE) * uy;
+      tries.push([bx, by]);
+      for (const k of [1, 2, 3]) for (const side of [1, -1]) tries.push([bx - side * k * LINE * uy, by + side * k * LINE * ux]);
+    }
+    let box = null;
+    for (const [x, y] of tries) {
+      const b = boxAt(x, y);
+      if (inside(b) && !touches(b)) { box = b; break; }
+    }
+    if (!box) {                                    // nowhere free: at the end of the arrow, kept inside the picture
+      box = boxAt(x1 + 9 * ux, y1 + 11 * uy);
+      const shift = Math.min(Math.max(box.left, 4), width - wide - 4) - box.left;
+      box = { ...box, left: box.left + shift, right: box.right + shift };
+    }
+    placed.push(box);
+    boxes.push({ name: label.name, ...box });
+    ctx.fillStyle = label.colour;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label.name, box.left, (box.top + box.bottom) / 2);
+  }
+  return boxes;
+}
+
 // A box on the 2D canvas behind the plan sentence, black but not quite opaque,
 // so the words can be read whatever the ground under them looks like and the
 // scene still shows through. Nothing when the sentence sits under the picture.
@@ -392,6 +436,8 @@ export function drawAboveMarks(canvas, map, view, lowest = Infinity) {
     }
     return points;
   };
+  // the arrows first; their names are placed afterwards, so they can make room for each other
+  const names = [];
   const mark = (az, r1, colour, name, head, dashed) => {
     let points = along(az, from, r1);
     for (let k = 0; k < 6 && points.length > 1 && points[points.length - 1][1] > lowest - 16; k++) {
@@ -414,17 +460,14 @@ export function drawAboveMarks(canvas, map, view, lowest = Infinity) {
       ctx.lineTo(x1 - 8 * ux + 4 * uy, y1 - 8 * uy - 4 * ux);
       ctx.stroke();
     }
-    // the name just past the end, kept inside the picture
-    const wide = ctx.measureText(name).width;
-    const x = x1 + 9 * ux - (ux > 0.3 ? 0 : ux < -0.3 ? wide : wide / 2);
-    ctx.textAlign = "left";
-    ctx.fillText(name, Math.min(Math.max(x, 4), width - wide - 4), y1 + 11 * uy);
+    names.push({ name, colour, x1, y1, ux, uy });
   };
   mark(0, reach * 0.5, LABEL, "north", false, false);
   mark(view.earthAz, reach, LINK, view.earthLink ? "Earth" : "Earth (behind terrain)", true, !view.earthLink);
   mark(view.sunAz, reach, POWER, view.sunFraction > 0 ? "Sun" : "Sun (behind terrain)", true, !(view.sunFraction > 0));
-  // the landing point
   const site = map.project(map.ground(0, 0));
+  const boxes = placeNames(ctx, names.reverse(), width, Math.min(height, lowest), site);   // the Sun first, then Earth, then north
+  // the landing point
   if (site) {
     ctx.strokeStyle = "#fff";
     ctx.beginPath();
@@ -433,6 +476,7 @@ export function drawAboveMarks(canvas, map, view, lowest = Infinity) {
     ctx.fillStyle = "#fff";
     ctx.fillRect(site[0] - 1, site[1] - 1, 2, 2);
   }
+  return boxes;
 }
 
 // Where the Sun and Earth are when the window does not show them.
